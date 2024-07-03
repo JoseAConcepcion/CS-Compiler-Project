@@ -79,7 +79,7 @@ def t_COMMENTS(t):
     t.lexer.lineno += t.value.count('\n')
 #Expresion regular para el id
 def t_ID(t):
-    r'[a-zA-Z_][a-zA-Z_0-9]*'
+    r'\b[a-zA-Z_][a-zA-Z_0-9]*\b' 
     t.type = reserved.get(t.value,'ID')    # Check for reserved words
     return t
 
@@ -131,12 +131,24 @@ def t_STRING(t):
     r'".*"'
     t.value = t.value[1:-1]
     return t
-# Regla para manejar errores
-def t_error(t):
-    raise("Error lexico: %s en la linea %d" % (t.value[0], t.lineno))
-    t.lexer.skip(1)
 
 # Define a rule so we can track line numbers
 def t_newline(t):
     r'\n+'
     t.lexer.lineno += len(t.value)
+
+class ErrorLexico(Exception):
+    def __init__(self, value, lineno):
+        self.value = value
+        self.lineno = lineno
+
+    RED = '\033[91m'
+    RESET = '\033[0m'  
+
+    def __str__(self):
+        return "Error lexico: token invalido " + self.RED + '%s' %(self.value) + self.RESET + " en la linea %d" %  (self.lineno)
+
+def t_error(t):
+    raise ErrorLexico(t.value[0], t.lineno)
+    t.lexer.skip(1)
+
