@@ -1,3 +1,5 @@
+from hulk_errors import LexicError
+
 #Lista de palabras reservadas
 reserved = {    
     'if' : 'IF',
@@ -137,18 +139,8 @@ def t_newline(t):
     r'\n+'
     t.lexer.lineno += len(t.value)
 
-class ErrorLexico(Exception):
-    def __init__(self, value, lineno):
-        self.value = value
-        self.lineno = lineno
-
-    RED = '\033[91m'
-    RESET = '\033[0m'  
-
-    def __str__(self):
-        return "Error lexico: token invalido " + self.RED + '%s' %(self.value) + self.RESET + " en la linea %d" %  (self.lineno)
 
 def t_error(t):
-    raise ErrorLexico(t.value[0], t.lineno)
+    raise LexicError(t.value[0], t.lineno)
     t.lexer.skip(1)
 

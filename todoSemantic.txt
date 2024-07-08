@@ -1,0 +1,39 @@
+-Checkeo de tipos basico (que si se suman son floats, que si hay or son bools,
+que si se llama es funcion valida, etc.)
+
+-Un tin de inferencia, supongo... (necesaria para saber el return type de un if por ejemplo)
+
+-Que los tipos y la cantidad de argumentos en la llamada de una funcion esten ok
+
+-Que self no se sobreescriba en un método, es decir que no se haga self := Iwachu;
+
+-Que en x.t, el tipo de x tenga realmente a t (sea funcion o variable)
+
+-Que no se declaren tipos ni funciones en lugares raros (dentro del cuerpo de
+una funcion o dentro de la expresion principal)
+
+-Que no se intenten sobrecargar keywords
+
+-Que todo lo que tiene que ver con arrays tenga consistencia de tipos
+
+-as, is? Nose
+
+-El tipo de retorno de una cadena de ifs es el LCA de los tipos de retorno de
+sus cuerpos (como en la base siempre estará object, siempre va a existir el LCA)
+
+-Anotar el tipo de self en self.x := y, o none
+
+-Checkear que, para un tipo, los metodos que sobreescribe de sus ancestros (los
+que tienen el mismo nombre que uno de los de ellos), tengan la misma signatura
+
+-Prohibir self.x := blah si self se sobrecargó
+
+-Prohibir string[x] := y. Los strings no son mutables, aunque si indexables.
+
+-Prohibir let x: Object = 2, let x: Object = True e ifs que una rama devuelve un
+tipo por valor y otra uno por referencia, lo mismo para arrays (esto es un hack,
+porque me da pereza hacer boxing y unboxing, que pa poco sirven XD...)
+
+-Prohibir llamarle self a un parametro de un metodo (por el momento me da pereza
+manejar esto, porque es estupido hacerlo...)(sí que manejo let self = 3, eso
+sale de gratis al tratar self como un parametro mas del metodo)
