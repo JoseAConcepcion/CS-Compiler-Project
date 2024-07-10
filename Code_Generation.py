@@ -18,7 +18,8 @@ class Globals:
         self.next_comparison_id = 1
         self.next_if_id = 1
         self.next_func_id = 1
-        self.next_type_id = 10
+        self.FIRST_TYPE_ID = 10
+        self.next_type_id = self.FIRST_TYPE_ID
 
         self.type_to_id = {} #(key, value) = (type_name, dynamic_type_id)
         self.func_to_id = {} #(key, value) = (function_name_in_code, corresponding_label_number_in_assembly)
@@ -122,6 +123,24 @@ def program_to_MIPS(main_expr: Expression, global_funcs: List[Function_Definitio
         
         if all_types_processed: break
 
+    #Type table
+    g.data_segment += "\n"
+    for type in global_types:
+        is_table = f"_tpy{g.type_to_id[type.name]}_is: .word "
+
+        parent = type
+        while parent != None:
+            is_table += f"{g.type_to_id[parent.name]}, "
+            parent = parent.parent
+        is_table += f"{0}\n"
+        g.data_segment += is_table
+    g.data_segment += "\n"
+
+    g.data_segment += "_is_table_references: .word "
+    for i in range(len(global_types)):
+        g.data_segment += f"_tpy{g.FIRST_TYPE_ID+i}_is, "
+    g.data_segment += "0 \n\n"
+
     #Translate the functions to assembly
     for func in global_funcs:
         t += function_to_mips(func, g, g.func_to_id[func.name])
@@ -200,7 +219,44 @@ def __expression_to_MIPS(expr_node, g: Globals, is_result_used, c: Context):
     elif isinstance(expr_node, Expression_Block):
         for i in range(len(expr_node.expressions)):
             t += __expression_to_MIPS(expr_node.expressions[i], g, ((i==len(expr_node.expressions)-1) and is_result_used), c)
-    
+
+    elif isinstance(expr_node, Is_Operator):
+        t += c.push_from("$fp")
+        t += c.push_from("$ra")
+        
+        t += f"li $a0, {g.type_to_id[expr_node.right.name]}"
+        t += c.push_from("$a0")
+
+        #Get left operand dynamic type
+        t += __expression_to_MIPS(expr_node.left, g, True, c)
+        t += c.pop_to("$a0")
+        t += "lw $a0, 0($a0)\n"
+
+        #Convert said type to offset from table
+        t += f"addi $a0, $a0, -{g.FIRST_TYPE_ID}\n"
+        t += "li $a1, 4\n"
+        t += "mul $a0, $a0, $a1\n"
+
+        #Index the table to get the reference to the wanted tpy_X_is array
+        t += "la $a2, _is_table_references\n"
+        t += "add $a2, $a2, $a0\n"
+        t += "lw $a2, 0($a2)\n"
+        t += c.push_from("$a2")
+
+        t += f"\njal is_int_in_array_zero_ended\n"
+        
+        t += c.pop_to("$a3")
+        t += c.pop_to("$a3")
+
+        t += c.pop_to("$ra")
+        t += c.pop_to("$fp")
+
+        if is_result_used:
+            t += c.push_from("$v0")
+
+    elif isinstance(expr_node, As_Keyword):
+        t += __expression_to_MIPS(expr_node.left, g, is_result_used, c)
+
     elif isinstance(expr_node, Dot_Operator):
         t += __expression_to_MIPS(expr_node.left, g, True, c)
         t += c.pop_to("$a0")
@@ -256,7 +312,6 @@ def __expression_to_MIPS(expr_node, g: Globals, is_result_used, c: Context):
         for i in range(0, len(expr_node.arguments)):
             t += __expression_to_MIPS(expr_node.arguments[i], g, True, c)
 
-
         if isinstance(expr_node.name, Identifier) and expr_node.name.name == "print":
             if isinstance(expr_node.arguments[0].type, Basic_or_Composite_Type):
                 if expr_node.arguments[0].type.name == STRING_TYPE_NAME:
@@ -264,7 +319,7 @@ def __expression_to_MIPS(expr_node, g: Globals, is_result_used, c: Context):
                 elif expr_node.arguments[0].type.name == FLOAT_TYPE_NAME:
                     t += __expression_to_MIPS(Identifier("print_flt"), g, True, c)
                 elif expr_node.arguments[0].type.name == BOOL_TYPE_NAME:
-                    t += __expression_to_MIPS(Identifier("print_bool"), g, True, c) #TODO
+                    t += __expression_to_MIPS(Identifier("print_bool"), g, True, c)
                 else:
                     t += __expression_to_MIPS(Identifier("print_type"), g, True, c)
             else:

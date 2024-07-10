@@ -5,12 +5,20 @@ from Default_Functions_and_Types import default_funcs, default_types
 funcs = default_funcs
 types = default_types
 
+tpy2_f1 = Function_Definition("print_tipo", [], Function_Call(Identifier("print_str"), [Dot_Operator(Identifier("self", Basic_or_Composite_Type("Cosa", None)), Identifier("tipo"))]))
+tpy2 = Type_Definition("Cosa", ["tipo"], ["tipo"],
+       [Identifier("tipo")], 
+       [tpy2_f1], None)
+
+types.append(tpy2)
+
 tpy0_f1 = Function_Definition("print_name", [], Function_Call(Identifier("print_str"), [Binary_Operator("@", Literal("miau jau muu "), Dot_Operator(Identifier("self", Basic_or_Composite_Type("Animal", None)), Identifier("name")))]))
 tpy0_f2 = Function_Definition("set_fuerza", ["F"], Variable_Destructive_Assignment("fuerza_de_patica_principal", Identifier("F"), True, None, Basic_or_Composite_Type("Animal", None)))
 tpy0_f3 = Function_Definition("print_fuerza", [], Function_Call(Identifier("print_flt"), [Dot_Operator(Identifier("self", Basic_or_Composite_Type("Animal", None)), Identifier("fuerza_de_patica_principal"), False)]))
 tpy0 = Type_Definition("Animal", ["name", "patas", "fuerza_de_patica_principal"], ["name", "patas_minus_two"],
        [Identifier("name"), Binary_Operator("+", Identifier("patas_minus_two"), Literal(2)), Literal(8)], 
-       [tpy0_f1, tpy0_f2, tpy0_f3], None)
+       [tpy0_f1, tpy0_f2, tpy0_f3], "Cosa", [Literal("pelo")])
+tpy0.parent = tpy2
 
 types.append(tpy0)
 
@@ -43,11 +51,18 @@ fnc1 = Function_Definition("print_pepe", ["job", "age"], Expression_Block([
 ]))
 funcs.append(fnc1)
 
+tpy3 = Type_Definition("Nada", [], [],
+       [], 
+       [], None)
+types.append(tpy3)
+
 epr = Variable_Declarations(["x"], [New("Persona", [Literal(10), Literal("pescado")])], Expression_Block([
-    Function_Call(Identifier("print_pepe"), [Literal("non"), Literal(3)]),
-    Function_Call(Identifier("print"), [Literal(False, Basic_or_Composite_Type(BOOL_TYPE_NAME, None))]),
-    Function_Call(Dot_Operator(Identifier("x", Basic_or_Composite_Type("Persona", tpy1)), Identifier("print_name"), True), []),
-    Function_Call(Dot_Operator(Identifier("x", Basic_or_Composite_Type("Persona", tpy1)), Identifier("set_fuerza"), True), [Literal(7)]),
+    Function_Call(Dot_Operator(As_Operator(Identifier("x"), Identifier("Animal"), Basic_or_Composite_Type("Animal", tpy0)), Identifier("print_name"), True), []),
+    #Function_Call(Identifier("print_str"), [Literal("\n")]),
+    #Function_Call(Identifier("print"), [Literal(False, Basic_or_Composite_Type(BOOL_TYPE_NAME, None))]),
+    #Function_Call(Dot_Operator(Identifier("x", Basic_or_Composite_Type("Persona", tpy1)), Identifier("print_name"), True), []),
+    #Function_Call(Dot_Operator(Identifier("x", Basic_or_Composite_Type("Persona", tpy1)), Identifier("set_fuerza"), True), [Literal(7)]),
+    #Function_Call(Dot_Operator(Identifier("x", Basic_or_Composite_Type("Persona", tpy1)), Identifier("print_tipo"), True), []),
 ]))
 
 

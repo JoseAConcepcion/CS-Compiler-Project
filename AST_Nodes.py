@@ -70,10 +70,11 @@ def Exponentiation_Operator(left: Expression, right: Expression):
     return Function_Call(Identifier("exp"), [Binary_Operator("*", right, Function_Call(Identifier("log_e"), [left]))])
 
 class Dot_Operator(Expression):
-    def __init__(self, left: Expression, right: Identifier, right_is_function_name: bool = False): #right_is_function_name se llena en el semmantic checker realmente
+    def __init__(self, left: Expression, right: Identifier, right_is_function_name: bool = False, type: Type = None): #right_is_function_name se llena en el semmantic checker realmente
         self.left = left
         self.right = right
         self.right_is_function_name = right_is_function_name
+        self.type = type
 
 class Index_Operator(Expression):
     def __init__(self, array_reference: Expression, index: Expression, type = None):
@@ -97,13 +98,23 @@ def Index_Expression_With_ABC(index: Expression, array_reference: Expression) ->
         Identifier(".index")
     ]))
 
-
 class Is_Operator(Expression):
     def __init__(self, left: Expression, right: Identifier):
         self.left = left
         self.right = right
+        self.type = Basic_or_Composite_Type(BOOL_TYPE_NAME, None)
 
-        self.right_definition = None #@Semmantic
+class As_Keyword(Expression):
+    def __init__(self, left: Expression, right: Identifier, type_of_right: Type = None):
+        self.left = left
+        self.right = right
+        self.type = type_of_right
+
+def As_Operator(left: Expression, right: Identifier, type_of_right: Type = None):
+    return If(Is_Operator(left, right), As_Keyword(left, right, type_of_right), If(Literal(True), 
+    Expression_Block([
+        Print_Error_and_Exit("You tried to convert between incompatible types!!!! Exiting program...")
+    ]), None, type_of_right), type_of_right)
 
 unary_operators = ["-", "!", ]
 class Unary_Operator(Expression):
@@ -141,10 +152,11 @@ class Variable_Destructive_Assignment(Expression):
         self.indexExpression = indexExpression
 
 class If(Expression): 
-    def __init__(self, condition: Expression, body: Expression, next):
+    def __init__(self, condition: Expression, body: Expression, next, type = None):
         self.condition = condition
         self.body = body
         self.next = next
+        self.type = type
 
 # class Else... no hay, es un if(True) con next = None
 

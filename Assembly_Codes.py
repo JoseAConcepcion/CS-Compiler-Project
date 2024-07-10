@@ -163,4 +163,34 @@ string_cmp:
 
     #Return
     j $ra
+
+is_int_in_array_zero_ended: #takes int and array_reference
+    #Set base
+    move $fp, $sp
+
+    #Load arguments
+    lw $a2, 0($fp) #Array reference
+    lw $a0, 4($fp) #Int
+
+    _iiia_w:
+        lw $a1, 0($a2)
+        beqz $a1, _iiia_w1f
+
+        beq $a0, $a1, _iiia_w1t
+        
+        addi $a2, $a2, 4
+        j _iiia_w
+
+    _iiia_w1f:
+        li $v0, 0
+        j _iiia_w1e
+    _iiia_w1t:
+        li $v0, 1
+
+    _iiia_w1e:
+
+    #Return
+    move $sp, $fp
+    j $ra
+
 """
