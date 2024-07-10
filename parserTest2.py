@@ -54,11 +54,17 @@ def p_id(p):
 
 def p_program(p):
     "program : functions_types_protocols global_high_level_expression"
-    # p[0] = Program(p[1], p[2])
-    # for i in p[1]:
-    #     i.parent = p[0]
-    # if p[2]:
-    #     p[2].parent = p[0]
+    functions = []
+    types = []
+    protocols = []
+    for item in p[1]:
+        if isinstance(item, Function_Definition):
+            functions.append(item)
+        elif isinstance(item, Type_Definition):
+            types.append(item)
+        elif isinstance(item, Protocol_Definition):
+            protocols.append(item)
+    p[0] = Program_Root(functions, types, protocols, p[2])
 
 
 def p_global_high_level_expression(p):
@@ -86,23 +92,22 @@ def p_function_type_list_items_empty(p):
 
 def p_protocol(p):
     "protocol_definition : PROTOCOL ID opt_extends LBRACE protocol_methods RBRACE optional_semicolon"
-    # id = ID(p[2], "protocol")
-    # p[0] = Protocol(id, p[5], p[3])
-    # id.parent = p[0]
-    # for i in p[5]:
-    #     i.parent = p[0]
-    # if p[3]:
-    #     p[3].parent = p[0]
+    methodsNames = []
+    methodsTypes = []
+    for item in p[5]:
+        methodsNames.append(item.name)
+        methodsTypes.append(item.type_name_annotations)
+    p[0] = Protocol_Definition(p[2],methodsNames, methodsTypes, p[3].name, p[3].type)
 
 
 def p_protocol_extends(p):
     "opt_extends : EXTENDS ID"
-    # p[0] = ID(p[2], "extends")
+    p[0] = Identifier(p[2])
 
 
 def p_protocol_extends_e(p):
     "opt_extends : empty"
-    # p[0] = None
+    p[0] = None
 
 
 def p_protocol_methods(p):
@@ -126,7 +131,7 @@ def p_protocol_method(p):
     # params = Params(p[3])
     # for i in p[3]:
     #     i.parent = params
-    p[0] = Function_Definition(p[1],names,None,types)
+    p[0] = Function_Definition(p[1],names,None,types,p[6])
     # id.parent = p[0]
     # params.parent = p[0]
 
@@ -166,10 +171,9 @@ def p_exp_func_call(p):
 
 def p_func_call(p):
     "func_call_next : ID LPAREN func_call_args RPAREN"
-    # id = ID(p[1], "func_call")
-    p[0] = Function_Call(p[1], p[3])
-    # id.parent = p[0]
-    # p[3].parent = p[0]
+    if p[1] == 'base':
+        p[0] = Base_Function_Call(p[3])
+    else: p[0] = Function_Call(Identifier(p[1]), p[3])
 
 
 def p_exp_type_call(p):
@@ -179,17 +183,12 @@ def p_exp_type_call(p):
 
 def p_type_call(p):
     "type_call : NEW ID LPAREN func_call_args RPAREN"
-    # id = ID(p[2], p[2])
     p[0] = New(p[2], p[4])
-    # id.parent = p[0]
-    # p[4].parent = p[0]
 
 
 def p_func_call_args(p):
     "func_call_args : func_call_args_list"
     p[0] = p[1]
-    # for i in p[1]:
-    #     i.parent = p[0]
 
 
 def p_func_call_args_list(p):
@@ -215,19 +214,22 @@ def p_func_call_args_list_rem_e(p):
 def p_function_definition(p):
     "function_definition : FUNCTION ID LPAREN func_params RPAREN type_of ARROW high_level_expression"
     # id = ID(p[2], p[6])
-    p[0] = Function_Definition(p[2], p[4], p[8])
-    # id.parent = p[0]
-    # p[4].parent = p[0]
-    # p[8].parent = p[0]
+    names = []
+    types = []
+    for item in p[4]:
+        names.append(item.name)
+        types.append(item.type)
+    p[0] = Function_Definition(p[2], names, p[8],types, p[6])
 
 
 def p_function_definition_fullform(p):
     "function_definition : FUNCTION ID LPAREN func_params RPAREN type_of expression_block optional_semicolon"
-    # id = ID(p[2], p[6])
-    p[0] = Function_Definition(p[2], p[4], p[7])
-    # id.parent = p[0]
-    # p[4].parent = p[0]
-    # p[7].parent = p[0]
+    names = []
+    types = []
+    for item in p[4]:
+        names.append(item.name)
+        types.append(item.type)
+    p[0] = Function_Definition(p[2], names, p[7],types, p[6])
 
 
 def p_func_params(p):
@@ -259,27 +261,28 @@ def p_func_params_list_rem_e(p):
 
 def p_type_def(p):
     "type_def : TYPE ID optional_type_params optional_inheritance LBRACE type_members RBRACE optional_semicolon"
-    # params = Params(p[3])
-    # for i in p[3]:
-    #     i.parent = params
-
-    # id = ID(p[2], p[2])
-
-    # p[0] = TypeDef(id, params, p[6], p[4])
-    # for i in p[6]:
-    #     i.parent = p[0]
-    # params.parent = p[0]
-    # id.parent = p[0]
-    # if p[4]:
-    #     p[4].parent = p[0]
+    variable_names = []
+    variable_types_anotations = []
+    functions = []
+    init_expressions = []
+    params_names = []
+    params_types = []
+    for item in p[3]:
+        params_names.append(item.name)
+        params_types.append(item.type)
+    for item in p[6]:
+        if isinstance(item, Variable_Declarations):
+            variable_names += item.names[0]
+            variable_types_anotations += item.type_name_annotations[0]
+            init_expressions += item.body
+        elif isinstance(item, Function_Definition):
+            functions.append(item)
+    p[0] = Type_Definition(p[2],variable_names, params_names,init_expressions, functions, p[4][0], p[4][1], variable_types_anotations, params_types)
 
 
 def p_optional_inheritance(p):
     "optional_inheritance : INHERITS ID optional_inheritance_params"
-    # id = ID(p[2], "inherits")
-    # p[0] = TypeCall(id, p[3])
-    # p[3].parent = p[0]
-    # id.parent = p[0]
+    p[0] = (p[2], p[3])
 
 
 def p_optional_inheritance_e(p):
@@ -294,7 +297,7 @@ def p_optional_inheritance_params(p):
 
 def p_optional_inheritance_params_e(p):
     "optional_inheritance_params : empty"
-    # p[0] = Params([])
+    p[0] = []
 
 
 def p_optional_type_params(p):
@@ -344,20 +347,22 @@ def p_member_func(p):
 
 def p_member_function_definition(p):
     "member_func : ID LPAREN func_params RPAREN type_of ARROW high_level_expression"
-    # id = ID(p[1], p[5])
-    p[0] = Function_Definition(p[1], p[3], p[7])
-    # id.parent = p[0]
-    # p[3].parent = p[0]
-    # p[7].parent = p[0]
+    names = []
+    types = []
+    for item in p[3]:
+        names.append(item.name)
+        types.append(item.type)
+    p[0] = Function_Definition(p[1], names, p[7],types, p[5])
 
 
 def p_member_function_definition_fullform(p):
     "member_func : ID LPAREN func_params RPAREN type_of expression_block optional_semicolon"
-    # id = ID(p[1], p[5])
-    p[0] = Function_Definition(p[1],p[3], p[6])
-    # id.parent = p[0]
-    # p[3].parent = p[0]
-    # p[6].parent = p[0]
+    names = []
+    types = []
+    for item in p[3]:
+        names.append(item.name)
+        types.append(item.type)
+    p[0] = Function_Definition(p[1], names, p[6],types, p[5])
 
 
 def p_member_var(p):
@@ -367,7 +372,7 @@ def p_member_var(p):
 
 def p_member_var_dec(p):
     "member_var : id ASIGN high_level_expression"
-    p[0] = Variable_Declarations(p[1], p[3])
+    p[0] = Variable_Declarations([p[1]], p[3])
     # p[1].parent = p[0]
     # p[3].parent = p[0]
 
@@ -499,22 +504,12 @@ def p_optional_semicolon(p):
 
 def p_for_hl(p):
     "high_level_expression : FOR LPAREN destroyable IN expression RPAREN high_level_expression"
-    # for_exp = For(p[3], p[5], p[7])
-    # p[3].parent = for_exp
-    # p[5].parent = for_exp
-    # p[7].parent = for_exp
-    # p[0] = Let([], for_exp)
-    # for_exp.parent = p[0]
+    p[0] = For(p[5],p[3],p[7])
 
 
 def p_for(p):
     "expression : FOR LPAREN destroyable IN expression RPAREN expression"
-    # for_exp = For(p[3], p[5], p[7])
-    # p[3].parent = for_exp
-    # p[5].parent = for_exp
-    # p[7].parent = for_exp
-    # p[0] = Let([], for_exp)
-    # for_exp.parent = p[0]
+    p[0] = For(p[5],p[3],p[7])
 
 
 def p_while_hl(p):
@@ -540,7 +535,13 @@ def p_expression_parenthized(p):
     "expression_parenthized : LPAREN expression RPAREN"
     p[0] = p[2]
 
-
+def p_indexed_destructive_asign(p):
+    """indexed_destructive_asign : id LBRAC expression RBRAC 
+    | id DOT id LBRAC expression RBRAC"""
+    if(p[2]!= "."):
+        p[0] = (p[1], p[3], False)
+    else:
+        p[0] = (p[3], p[5], True)
 def p_expression_binop(p):
     """expression : expression PLUS expression
     | expression MINUS expression
@@ -560,24 +561,22 @@ def p_expression_binop(p):
     | expression MAJOR expression
     | destroyable DESTRUCTASIGN expression
     | member_resolute DESTRUCTASIGN expression
-    | expression LBRAC expression RBRAC DESTRUCTASIGN expression
+    | indexed_destructive_asign DESTRUCTASIGN expression
     | expression IS type_test
     | expression AS type_test
     """
     if p[2] == "@@":
         p[0] = Binary_Operator(binary_operators['@'], p[1], Binary_Operator(binary_operators['@'], p[3], " "))
-    elif p[2] == "is": #self.arr[5] := lalala
+    elif(p[2] == "^"):
+        p[0] = Exponentiation_Operator(p[1], p[3])
+    elif p[2] == "is":
         p[0] = Is_Operator(p[1],p[3])
     elif p[2] == ":=":
         if isinstance(p[1], Identifier):     
             p[0]=Variable_Destructive_Assignment(p[1],p[3],False, None)
-        else:
-            p[0] = Variable_Destructive_Assignment(p[1].right.name, p[3], False, None)
-    elif len(p) == 7:
-        print('Candela')
-        if(isinstance(p[3], Index_Operator)):
-            print("Candela Plus")
-            p[0] = Variable_Destructive_Assignment("", p[6], False, p[3])           
+        elif(isinstance(p[1],Dot_Operator)):
+            p[0] = Variable_Destructive_Assignment(p[1].right.name, p[3], True, None)     
+        else: p[0] = Variable_Destructive_Assignment(p[1][0], p[3], p[1][2], p[1][1])     
     else:
         Binary_Operator(p[2],p[1],p[3])
     
@@ -609,22 +608,20 @@ def p_expression_binop_hl(p):
     | expression MAJOR high_level_expression
     | destroyable DESTRUCTASIGN high_level_expression
     | member_resolute DESTRUCTASIGN high_level_expression
-    | expression LBRAC expression RBRAC DESTRUCTASIGN high_level_expression
+    | indexed_destructive_asign DESTRUCTASIGN expression
     """
     if p[2] == "@@":
         p[0] = Binary_Operator(binary_operators['@'], p[1], Binary_Operator(binary_operators['@'], p[3], " "))
-    elif p[2] == "is": #self.arr[5] := lalala
+    elif(p[2] == "^"):
+        p[0] = Exponentiation_Operator(p[1], p[3])
+    elif p[2] == "is":
         p[0] = Is_Operator(p[1],p[3])
     elif p[2] == ":=":
         if isinstance(p[1], Identifier):     
             p[0]=Variable_Destructive_Assignment(p[1],p[3],False, None)
-        else:
-            p[0] = Variable_Destructive_Assignment(p[1].right.name, p[3], False, None)
-    elif len(p) == 7:
-        print('Candela')
-        if(isinstance(p[3], Index_Operator)):
-            print("Candela Plus")
-            p[0] = Variable_Destructive_Assignment("", p[6], False, p[3])           
+        elif(isinstance(p[1],Dot_Operator)):
+            p[0] = Variable_Destructive_Assignment(p[1].right.name, p[3], True, None)     
+        else: p[0] = Variable_Destructive_Assignment(p[1][0], p[3], p[1][2], p[1][1])        
     else:
         Binary_Operator(p[2],p[1],p[3])
     # if p[2] == ":=":
@@ -653,16 +650,12 @@ def p_exp_member_resolute(p):
 
 
 def p_member_resolute(p):
-    "member_resolute : expression DOT member_resolut"
-    
-    p[0] = Dot_Operator(p[1], p[3])
-    # p[1].parent = p[0]
-    # p[3].parent = p[0]
+    "member_resolute : id DOT member_resolut"
+    if(p[1].name== "self"):
+        p[0] = Dot_Operator(p[1], p[3])
+    else:
+        raise Exception("It is no possible to apply a destructive asignment on a private member")
 
-
-def p_member_resolut_fc(p):
-    "member_resolut : func_call_next"
-    p[0] = p[1]
 
 
 def p_member_resolut_att(p):
@@ -712,10 +705,7 @@ def p_vector_ext(p):
 
 def p_vector_int(p):
     "vector : LBRAC expression GENERATOR destroyable IN expression RBRAC"
-    # p[0] = VectorInt(p[2], p[4], p[6])
-    # p[2].parent = p[0]
-    # p[4].parent = p[0]
-    # p[6].parent = p[0]
+    p[0] = Array_Implicit_Declaration(p[3], p[5], p[7])
 
 
 def p_expression_vector_ind_pare(p):
@@ -806,5 +796,5 @@ while True:
     code = input("calc > ")
     if not code:
         break
-    parser.parse(code, lexer=lexer)
+    print(parser.parse(code, lexer=lexer))
     
