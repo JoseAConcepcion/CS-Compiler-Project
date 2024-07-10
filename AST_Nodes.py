@@ -161,7 +161,8 @@ def For(iterable: Expression, variable_name: str, body: Expression):
 class Type_Definition(Expression):
     def __init__(self, name: str, variable_names: List[str], initializer_parameters: List[str], 
                  initializer_expressions: List[Expression], functions: List[Function_Definition], parent_name: str, 
-                 parent_initializer_expressions: List[Expression] = None, type_name_annotations: List[str] = []): 
+                 parent_initializer_expressions: List[Expression] = None, 
+                 variable_type_name_annotations: List[str] = [], initializers_type_name_annotations: List[str] = []): 
         self.name = name
         self.variable_names = variable_names
         self.initializer_parameters = initializer_parameters
@@ -169,7 +170,8 @@ class Type_Definition(Expression):
         self.functions = functions
         self.parent_name = parent_name
         self.parent_initializer_expressions = parent_initializer_expressions
-        self.type_name_annotations = type_name_annotations
+        self.variable_type_name_annotations = variable_type_name_annotations
+        self.initializers_type_name_annotations = initializers_type_name_annotations
 
         self.initializer_parameter_types = []
         self.parent: Type_Definition = None

@@ -497,7 +497,7 @@ def __expression_to_MIPS(expr_node, g: Globals, is_result_used, c: Context):
             t += c.pop_to("$a1")
             t += c.pop_to("$a0")
             
-            if isinstance(expr_node.type, Basic_or_Composite_Type) and expr_node.type.name == STRING_TYPE_NAME:
+            if isinstance(expr_node.left.type, Basic_or_Composite_Type) and expr_node.left.type.name == STRING_TYPE_NAME:
                 #Call the string_cmp func
                 t += c.push_from("$fp")
                 t += c.push_from("$ra")
