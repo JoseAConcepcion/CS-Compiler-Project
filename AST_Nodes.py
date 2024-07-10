@@ -1,4 +1,5 @@
 from abc import ABC
+from cmp.semantic import Scope
 from cmp.semantic import *
 from typing import List
 

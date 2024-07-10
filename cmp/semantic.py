@@ -1,11 +1,8 @@
 import itertools as itt
 from collections import OrderedDict
+from AST_Nodes import *
+from hulk_errors import SemanticError
 
-
-class SemanticError(Exception):
-    @property
-    def text(self):
-        return self.args[0]
 
 class Attribute:
     def __init__(self, name, typex):
@@ -152,6 +149,24 @@ class IntType(Type):
 
     def __eq__(self, other):
         return other.name == self.name or isinstance(other, IntType)
+
+class Function:
+    def __init__(
+        self, name, param_names, param_types, return_type, current_node=None, body=None
+    ):
+        self.name = name
+        self.param_names = param_names
+        self.param_types = param_types
+        self.return_type = return_type
+        self.body: Expression = body
+        self.current_node = current_node
+
+    def __eq__(self, other):
+        return (
+            other.name == self.name
+            and other.return_type == self.return_type
+            and other.param_types == self.param_types
+        )
 
 class Protocol:
     def __init__(self, name: str, node=None):
