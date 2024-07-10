@@ -153,6 +153,36 @@ class IntType(Type):
     def __eq__(self, other):
         return other.name == self.name or isinstance(other, IntType)
 
+class Protocol:
+    def __init__(self, name: str, node=None):
+        self.name = name
+        self.node = node
+        self.methods = []
+        self.parent = None
+
+    def set_parent(self, parent):
+        if self.parent is not None:
+            raise SemanticError(f'Parent type is already set for {self.name}.')
+        self.parent = parent
+
+    def get_method(self, name: str):
+        try:
+            return next(method for method in self.methods if method.name == name)
+        except StopIteration:
+            if self.parent is None:
+                raise SemanticError(f'Method "{name}" is not defined in {self.name}.')
+            try:
+                return self.parent.get_method(name)
+            except SemanticError:
+                raise SemanticError(f'Method "{name}" is not defined in {self.name}.')
+
+    def define_method(self, name: str, param_names: list, param_types: list, return_type, node=None):
+        if name in (method.name for method in self.methods):
+            raise SemanticError(f'Method "{name}" already defined in {self.name}')
+        method = Method(name, param_names, param_types, return_type, node)
+        self.methods.append(method)
+        return method
+
 class Context:
     def __init__(self):
         self.types = {}
@@ -174,7 +204,25 @@ class Context:
 
     def __repr__(self):
         return str(self)
+    
+    def create_protocol(self, name: str, current_node=None):
+        if name in self.protocols:
+            raise SemanticError(
+                f"Protocol with the same name ({name}) already in context."
+            )
+        if name in self.types:
+            raise SemanticError(f"Type with the same name ({name}) already in context.")
+        protocol = self.protocols[name] = Protocol(name, current_node)
+        return protocol
 
+    def get_protocol(self, name: str) -> Protocol:
+        try:
+            return self.protocols[name]
+        except KeyError:
+            raise SemanticError(f'Protocol "{name}" is not defined.')
+        
+        
+    
 class VariableInfo:
     def __init__(self, name, vtype):
         self.name = name

@@ -1,4 +1,18 @@
+from abc import ABC
+from cmp.semantic import *
 from typing import List
+
+###--- Nodes ---###
+
+class Node(ABC):
+    def __init__(self):
+        self.scope: Scope
+
+class ProgramNode(Node):
+    def __init__(self, declarations, expression):
+        super().__init__()
+        self.declarations = declarations
+        self.expression = expression
 
 ###--- Types --###
 class Type:
@@ -24,7 +38,7 @@ class ASSEMBLY_INSERT(Expression):
 
 builtin_numerical_constants = {"PI": 3.14, "E": 2.71}
 class Literal(Expression):
-    def __init__(self, value):
+    def __init__(self, value, type = None):
         self.value = value
 
 class Array_Literal(Expression):#TODO
@@ -126,11 +140,15 @@ class Variable_Declarations(Expression):
 
         self.type_name_annotations = type_name_annotations
 
+        self.type_name_annotations = type_name_annotations
+
 class Variable_Destructive_Assignment(Expression):
     def __init__(self, var_name: str, expression: Expression, is_self_dot: bool, indexExpression: Expression, selfDotType: Type = None): #Si selfDotType = None, entonces la asignacion es a una variable local. Analogamente, si indexExpression = None, no es una asignacion a un elemento de un array
         self.var_name = var_name
         self.expression = expression
         self.selfDotType = selfDotType
+        self.is_self_dot = is_self_dot
+        self.indexExpression = indexExpression
         self.is_self_dot = is_self_dot
         self.indexExpression = indexExpression
 
