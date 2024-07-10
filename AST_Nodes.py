@@ -4,7 +4,11 @@ from typing import List
 class Type:
     pass
 
-basic_types = ["float", "string", "bool", "object"]
+STRING_TYPE_NAME = "string"
+FLOAT_TYPE_NAME = "float"
+BOOL_TYPE_NAME = "bool"
+OBJECT_TYPE_NAME = "object"
+basic_types = [FLOAT_TYPE_NAME, STRING_TYPE_NAME, BOOL_TYPE_NAME, OBJECT_TYPE_NAME]
 class Basic_or_Composite_Type(Type):
     def __init__(self, name: str, definition): #definition: Type_Definition or Protocol_Definition (para float, string, bool y object esta definicion es = None)
         self.name = name
@@ -24,12 +28,14 @@ class ASSEMBLY_INSERT(Expression):
 
 builtin_numerical_constants = {"PI": 3.14, "E": 2.71}
 class Literal(Expression):
-    def __init__(self, value):
+    def __init__(self, value, type = None):
         self.value = value
+        self.type = type
 
-class Array_Literal(Expression):#TODO
-    def __init__(self, expressions: List[Expression]):
+class Array_Literal(Expression):
+    def __init__(self, expressions: List[Expression], type = Array_Type(None)):
         self.expressions = expressions
+        self.type = type
 
 class Identifier(Expression):
     def __init__(self, name: str, type = None):
@@ -185,7 +191,7 @@ class Protocol_Definition(Expression):
         self.func_parameter_types = []
 
 def Array_Implicit_Declaration(expr: Expression, var: Identifier, iterable: Expression) -> Expression:
-    return Array_Literal([Literal(42), Literal(73), Literal(13), Literal(5)])
+    return Array_Literal([Literal(42), Literal(73), Literal(13), Literal(5)]) #TODO
 
 class Program_Root:
     def __init__(self, func_list: List[Function_Definition], type_list: List[Type_Definition], protocol_list: List[Protocol_Definition], 

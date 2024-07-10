@@ -3,9 +3,17 @@ from Assembly_Codes import *
 
 class Globals:
     def __init__(self):
-        self.data_segment = ".data\n_fl0: .float 0.0\n_str0: .asciiz \"\"\n" 
+        self.data_segment = """
+            .data
+            _fl0: .float 0.0
+            _str0: .asciiz \"\"
+            _str1: .asciiz \"Instancia de objeto, de tipo dinamico con id interno: \"
+            _str2: .asciiz \"Pues... un array...\"
+            _str3: .asciiz \"False\"
+            _str4: .asciiz \"True\"
+        """
         self.next_float_id = 1
-        self.next_str_id = 1
+        self.next_str_id = 5
         self.next_while_id = 1
         self.next_comparison_id = 1
         self.next_if_id = 1
@@ -49,7 +57,7 @@ def function_to_mips(func: Function_Definition, g: Globals, func_id: int):
 
         t += __expression_to_MIPS(func.body, g, True, c)
         t += c.pop_to("$v0")
-        #t += "move $sp, $fp\n"
+        t += "move $sp, $fp\n"
         t += "j $ra\n"
         return t
 
@@ -200,7 +208,7 @@ def __expression_to_MIPS(expr_node, g: Globals, is_result_used, c: Context):
         if isinstance(expr_node.left.type, Array_Type): #TODO: next, current?
             if expr_node.right.name == "length":
                 t += "lw $a1, -4($a0)\n"
-        elif expr_node.left.type.name == "string" and expr_node.right.name == "length":
+        elif expr_node.left.type.name == STRING_TYPE_NAME and expr_node.right.name == "length":
             t += c.push_from("$fp")
             t += c.push_from("$ra")
             
@@ -248,7 +256,21 @@ def __expression_to_MIPS(expr_node, g: Globals, is_result_used, c: Context):
         for i in range(0, len(expr_node.arguments)):
             t += __expression_to_MIPS(expr_node.arguments[i], g, True, c)
 
-        t += __expression_to_MIPS(expr_node.name, g, True, c)
+
+        if isinstance(expr_node.name, Identifier) and expr_node.name.name == "print":
+            if isinstance(expr_node.arguments[0].type, Basic_or_Composite_Type):
+                if expr_node.arguments[0].type.name == STRING_TYPE_NAME:
+                    t += __expression_to_MIPS(Identifier("print_str"), g, True, c)
+                elif expr_node.arguments[0].type.name == FLOAT_TYPE_NAME:
+                    t += __expression_to_MIPS(Identifier("print_flt"), g, True, c)
+                elif expr_node.arguments[0].type.name == BOOL_TYPE_NAME:
+                    t += __expression_to_MIPS(Identifier("print_bool"), g, True, c) #TODO
+                else:
+                    t += __expression_to_MIPS(Identifier("print_type"), g, True, c)
+            else:
+                t += __expression_to_MIPS(Identifier("print_array"), g, True, c)
+        else:
+            t += __expression_to_MIPS(expr_node.name, g, True, c)
         t += c.pop_to("$a0")
         t += f"\njalr $ra, $a0\n"
         
@@ -368,9 +390,9 @@ def __expression_to_MIPS(expr_node, g: Globals, is_result_used, c: Context):
         
         if is_result_used:
             if isinstance(expr_node.type, Basic_or_Composite_Type):
-                if expr_node.type.name == "float":
+                if expr_node.type.name == FLOAT_TYPE_NAME:
                     t += "lw $a0, _fl0\n"
-                elif expr_node.type.name == "string":
+                elif expr_node.type.name == STRING_TYPE_NAME:
                     t += "la $a0, _str0\n"
                 else:
                     t += "ori $a0, $0, 0\n"
@@ -391,7 +413,7 @@ def __expression_to_MIPS(expr_node, g: Globals, is_result_used, c: Context):
 
     elif isinstance(expr_node, Binary_Operator):
         
-        #Evaluate left and right and pop its values
+        #Evaluate left and right
         t += __expression_to_MIPS(expr_node.left, g, True, c)
         t += __expression_to_MIPS(expr_node.right, g, True, c)
         
@@ -475,7 +497,7 @@ def __expression_to_MIPS(expr_node, g: Globals, is_result_used, c: Context):
             t += c.pop_to("$a1")
             t += c.pop_to("$a0")
             
-            if isinstance(expr_node.type, Basic_or_Composite_Type) and expr_node.type.name == "string":
+            if isinstance(expr_node.type, Basic_or_Composite_Type) and expr_node.type.name == STRING_TYPE_NAME:
                 #Call the string_cmp func
                 t += c.push_from("$fp")
                 t += c.push_from("$ra")

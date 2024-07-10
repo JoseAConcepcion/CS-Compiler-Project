@@ -33,16 +33,19 @@ tpy1.parent = tpy0
 types.append(tpy1)
 
 fnc1 = Function_Definition("print_pepe", ["job", "age"], Expression_Block([
-    Function_Call(Identifier("print_flt"), [Identifier("age")]),
-    Function_Call(Identifier("print_str"), [Literal("\n")]),
-    Function_Call(Identifier("print_str"), [Identifier("job")]),
-    Function_Call(Identifier("print_str"), [Literal("\n")]),
-    Literal(2)
+    Variable_Declarations(["x"], [New("Persona", [Literal(10), Literal("pescado")])], Expression_Block([
+        Function_Call(Identifier("print_flt"), [Identifier("age")]),
+        Function_Call(Identifier("print_str"), [Literal("\n")]),
+        Function_Call(Identifier("print_str"), [Identifier("job")]),
+        Function_Call(Identifier("print_str"), [Literal("\n")]),
+    ])),
+    Literal(2),
 ]))
 funcs.append(fnc1)
 
 epr = Variable_Declarations(["x"], [New("Persona", [Literal(10), Literal("pescado")])], Expression_Block([
-    Function_Call(Identifier("print_str"), [Literal("\n")]),
+    Function_Call(Identifier("print_pepe"), [Literal("non"), Literal(3)]),
+    Function_Call(Identifier("print"), [Literal(False, Basic_or_Composite_Type(BOOL_TYPE_NAME, None))]),
     Function_Call(Dot_Operator(Identifier("x", Basic_or_Composite_Type("Persona", tpy1)), Identifier("print_name"), True), []),
     Function_Call(Dot_Operator(Identifier("x", Basic_or_Composite_Type("Persona", tpy1)), Identifier("set_fuerza"), True), [Literal(7)]),
 ]))
