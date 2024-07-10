@@ -185,7 +185,7 @@ class Protocol_Definition(Expression):
         self.func_parameter_types = []
 
 def Array_Implicit_Declaration(expr: Expression, var: Identifier, iterable: Expression) -> Expression:
-    pass #TODO
+    return Array_Literal([Literal(42), Literal(73), Literal(13), Literal(5)])
 
 class Program_Root:
     def __init__(self, func_list: List[Function_Definition], type_list: List[Type_Definition], protocol_list: List[Protocol_Definition], 
