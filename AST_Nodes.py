@@ -24,11 +24,11 @@ class ASSEMBLY_INSERT(Expression):
 
 builtin_numerical_constants = {"PI": 3.14, "E": 2.71}
 class Literal(Expression):
-    def __init__(self, value, type = None):
+    def __init__(self, value):
         self.value = value
 
 class Array_Literal(Expression):#TODO
-    def __init__(self, expressions: List[Expression], type = None):
+    def __init__(self, expressions: List[Expression]):
         self.expressions = expressions
 
 class Identifier(Expression):
@@ -42,8 +42,15 @@ class Function_Call(Expression):
         self.name = name
         self.arguments = arguments
 
+class Base_Function_Call(Expression):
+    def __init__(self, arguments: List[Expression], ancestor_name: str = None, func_name: str = None): #ancestor_name es el nombre del tipo ancestro que tiene la funcion a la que se esta llamando con base
+        self.arguments = arguments
+
+        self.ancestor_name = ancestor_name
+        self.func_name = func_name
+
 binary_operators = [
-    "+", "-", "*", "/", "^", "@"
+    "+", "-", "*", "/", "@"
     "<", ">", "<=", ">=", "==", "!=",
     "&", "|"]
 class Binary_Operator(Expression):
@@ -52,6 +59,9 @@ class Binary_Operator(Expression):
         self.right = right
         self.operator_type = operator_type
         self.type = type
+
+def Exponentiation_Operator(left: Expression, right: Expression):
+    return Function_Call(Identifier("exp"), [Binary_Operator("*", right, Function_Call(Identifier("log_e"), [left]))])
 
 class Dot_Operator(Expression):
     def __init__(self, left: Expression, right: Identifier, right_is_function_name: bool = False): #right_is_function_name se llena en el semmantic checker realmente
@@ -68,25 +78,26 @@ class Index_Operator(Expression):
 def Print_Error_and_Exit(message: str):
     return Expression_Block([
         Function_Call(Identifier("print_str"), [Literal(message)]), 
-        ASSEMBLY_INSERT("ori $2, $0, 10\nsyscall") #EXIT
+        ASSEMBLY_INSERT("ori $2, $0, 10\nsyscall\n") #EXIT
     ])
 
 def Index_Expression_With_ABC(index: Expression, array_reference: Expression) -> Expression: #Wrapper, para checkear que el indice sea valido, en tiempo de ejecucion.
-    return Expression_Block([
-        If(  Binary_Operator("|",   Binary_Operator(">=", index, Dot_Operator(array_reference, Identifier("length"))),   Binary_Operator("<", index, Literal(0))), 
+    return Variable_Declarations([".index"], [index], Expression_Block([
+        If(  Binary_Operator("|",   Binary_Operator(">=", Identifier(".index"), Dot_Operator(array_reference, Identifier("length"))),   Binary_Operator("<", Identifier(".index"), Literal(0))), 
             Expression_Block([Print_Error_and_Exit("Array Bounds Check Failed!!!! Exiting program..."), Literal(True)]), If(
                 Literal(True), Literal(False), None
             )
         ),
-        index
-    ])
+        Identifier(".index")
+    ]))
+
 
 class Is_Operator(Expression):
     def __init__(self, left: Expression, right: Identifier):
         self.left = left
         self.right = right
 
-        self.right_definition = None
+        self.right_definition = None #@Semmantic
 
 unary_operators = ["-", "!", ]
 class Unary_Operator(Expression):
@@ -99,12 +110,13 @@ class Expression_Block(Expression):
         self.expressions = expressions
 
 class Function_Definition(Expression):
-    def __init__(self, name: str, argument_names: List[str], body: Expression, type_name_annotations: List[str] = []): #type_name_annotations[x] = None si no se anotó ese argumento
+    def __init__(self, name: str, argument_names: List[str], body: Expression, type_name_annotations: List[str] = [], return_type_annotation: str = ""): #type_name_annotations[x] = None si no se anotó ese argumento
         self.name = name
         self.argument_names = argument_names
         self.body = body
 
         self.argument_type_annotations = type_name_annotations
+        self.return_type_annotation = return_type_annotation
 
 class Variable_Declarations(Expression):
     def __init__(self, names: List[str], values: List[Expression], body: Expression, type_name_annotations: List[str] = []): #type_name_annotations[x] = None si no se anotó esa variable
@@ -135,12 +147,15 @@ class While(Expression):
         self.condition = condition
         self.body = body
 
-#class For... no hay, transpila a una combinacion de Variable_Declarations y While
+def For(iterable: Expression, variable_name: str, body: Expression):
+    return Variable_Declarations([".it"], [iterable], While(Function_Call(Dot_Operator(Identifier(".it"), Identifier("next"), True), []), 
+        Variable_Declarations([variable_name], [Function_Call(Dot_Operator(Identifier(".it"), Identifier("current"), True), [])], body)
+    ), ["Iterable"])
 
 class Type_Definition(Expression):
     def __init__(self, name: str, variable_names: List[str], initializer_parameters: List[str], 
                  initializer_expressions: List[Expression], functions: List[Function_Definition], parent_name: str, 
-                 parent_initializer_expressions: List[Expression] = None): 
+                 parent_initializer_expressions: List[Expression] = None, type_name_annotations: List[str] = []): 
         self.name = name
         self.variable_names = variable_names
         self.initializer_parameters = initializer_parameters
@@ -148,9 +163,11 @@ class Type_Definition(Expression):
         self.functions = functions
         self.parent_name = parent_name
         self.parent_initializer_expressions = parent_initializer_expressions
+        self.type_name_annotations = type_name_annotations
 
         self.initializer_parameter_types = []
-        self.parent = None
+        self.parent: Type_Definition = None
+        self.inhereted_functions = []
 
 class New(Expression):
     def __init__(self, type_name: str, arguments: List[Expression]):
@@ -158,10 +175,12 @@ class New(Expression):
         self.arguments = arguments
 
 class Protocol_Definition(Expression):
-    def __init__(self, name: str, func_names: List[str], func_parameter_type_names: List[List[str]]):
+    def __init__(self, name: str, func_names: List[str], func_parameter_type_names: List[List[str]], func_return_type_names: List[str], parent_name: str):
         self.name = name
         self.func_names = func_names
         self.func_parameter_type_names = func_parameter_type_names
+        self.func_return_type_names = func_return_type_names
+        self.parent_name = parent_name
 
         self.func_parameter_types = []
 

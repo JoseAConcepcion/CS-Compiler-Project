@@ -10,11 +10,14 @@ class Globals:
         self.next_comparison_id = 1
         self.next_if_id = 1
         self.next_func_id = 1
+        self.next_type_id = 10
 
+        self.type_to_id = {} #(key, value) = (type_name, dynamic_type_id)
         self.func_to_id = {} #(key, value) = (function_name_in_code, corresponding_label_number_in_assembly)
-        self.type_to_constructor = {} #(key, value) = (type_name_in_code, corresponding_label_number_in_assembly)
+        self.type_to_initializer = {} #(key, value) = (type_name_in_code, corresponding_label_number_in_assembly)
         self.type_and_function_to_id = {} #(key, value) = ((type_name_in_code, function_name_in_code), corresponding_label_number_in_assembly)
         self.type_and_member_to_offset = {} #(key, value) = ((type_name_in_code, member_name_in_code), offset_from_start_of_object)
+        self.type_to_size = {} #(key, value) = (type_name, size_in_bytes)
 
 class Context:
     def __init__(self):
@@ -39,8 +42,8 @@ def function_to_mips(func: Function_Definition, g: Globals, func_id: int):
         t = ""
         t += f"\n_func{func_id}:\n"
         t += "move $fp, $sp\n"
+        
         c = Context()
-
         for i in range(0, len(func.argument_names)):
             c.local_variables[func.argument_names[i]] = [4*(len(func.argument_names)-1-i)]
 
@@ -61,22 +64,55 @@ def program_to_MIPS(main_expr: Expression, global_funcs: List[Function_Definitio
         g.func_to_id[func.name] = g.next_func_id
         g.next_func_id += 1
     
-    #For each type, assign and id to the constructor, every function, and assign offset to each member (function or data)
-    for type in global_types: #TODO: herencia
-        g.type_to_constructor[type.name] = g.next_func_id
-        g.next_func_id += 1
+    #Calculate type ids, sizes, func_ids, offsets, etc.
+    for type in global_types:
+        g.type_to_size[type.name] = -1
+    
+    while True:
+        all_types_processed = True
+        for type in global_types:
+            if g.type_to_size[type.name] == -1:
+                all_types_processed = False
+                if type.parent_name == None or g.type_to_size[type.parent_name] != -1:
+                    
+                    #Type to dynamic_type_id
+                    g.type_to_id[type.name] = g.next_type_id
+                    g.next_type_id += 1
 
-        for func in type.functions:
-            g.type_and_function_to_id[(type.name, func.name)] = g.next_func_id
-            g.next_func_id += 1
+                    #Initializer to func_id
+                    g.type_to_initializer[type.name] = g.next_func_id
+                    g.next_func_id += 1
+
+                    #Member functions to func_id
+                    for func in type.functions:
+                        g.type_and_function_to_id[(type.name, func.name)] = g.next_func_id
+                        g.next_func_id += 1
+                    
+                    #Member variable to offset
+                    offset = 4
+                    if type.parent_name != None:
+                        offset = g.type_to_size[type.parent_name]
+                    
+                    for member_name in type.variable_names:
+                        g.type_and_member_to_offset[(type.name, member_name)] = offset
+                        offset += 4
+                    
+                    #Overloaded and inhereted functions to offset. Also, add the inhereted ones to corresponding list.
+                    if type.parent_name != None:
+                        for func_parent in type.parent.functions+type.parent.inhereted_functions:
+                            g.type_and_member_to_offset[(type.name, func_parent.name)] = g.type_and_member_to_offset[(type.parent.name, func_parent.name)]
+                            if func_parent.name not in [func.name for func in type.functions]: #HACK: should semmantic checker do this?
+                                type.inhereted_functions.append(func_parent)
+
+                    #New (not overloaded nor inhereted) functions to offset
+                    for func in type.functions:
+                        if (type.name, func.name) not in g.type_and_member_to_offset:
+                            g.type_and_member_to_offset[(type.name, func.name)] = offset
+                            offset += 4
+
+                    g.type_to_size[type.name] = offset
         
-        offset = 0
-        for member_name in type.variable_names:
-            g.type_and_member_to_offset[(type.name, member_name)] = offset
-            offset += 4
-        for func in type.functions:
-            g.type_and_member_to_offset[(type.name, func.name)] = offset
-            offset += 4
+        if all_types_processed: break
 
     #Translate the functions to assembly
     for func in global_funcs:
@@ -84,20 +120,39 @@ def program_to_MIPS(main_expr: Expression, global_funcs: List[Function_Definitio
 
     #Translate types to assembly
     for type in global_types:
-        #Constructor (TODO: inheretance)
-        t += f"\n_func{g.type_to_constructor[type.name]}:\n"
+        #--Build Initializer--##
+        t += f"\n_func{g.type_to_initializer[type.name]}:\n"
         t += "move $fp, $sp\n"
+        
+        temp_c = Context()
+        for i in range(0, len(type.initializer_parameters)):
+            temp_c.local_variables[type.initializer_parameters[i]] = [4*(len(type.initializer_parameters)-i)]
 
-        t += f"\nori $a0, $0, {4*(len(type.functions)+len(type.variable_names))}\n"
-        t +="ori $v0, $0, 9\nsyscall\n"
+        #Call parent initializer if exists
+        if type.parent_name != None:
+            t += temp_c.push_from("$fp")
+            t += temp_c.push_from("$ra")
 
+            for i in range(0, len(type.parent_initializer_expressions)):
+                t += __expression_to_MIPS(type.parent_initializer_expressions[i], g, True, temp_c)
+            
+            t += "lw $a0, 0($fp)\n"
+            t += temp_c.push_from("$a0")
+
+            t += f"\njal _func{g.type_to_initializer[type.parent_name]}\n"
+            
+            for i in range(0, len(type.parent_initializer_expressions)):
+                t += temp_c.pop_to("$a3")
+            t += temp_c.pop_to("$a3")
+
+            t += temp_c.pop_to("$ra")
+            t += temp_c.pop_to("$fp")
+        
+        #Initialize members
+        t += "lw $v0, 0($fp)\n"
         for func in type.functions:
             t += f"\nla $a0, _func{g.type_and_function_to_id[(type.name,func.name)]}\n"
             t += f"sw $a0, {g.type_and_member_to_offset[(type.name,func.name)]}($v0)\n"
-
-        temp_c = Context()
-        for i in range(0, len(type.initializer_parameters)):
-            temp_c.local_variables[type.initializer_parameters[i]] = [4*(len(type.initializer_parameters)-1-i)]
 
         for i in range(0, len(type.variable_names)):
             t += temp_c.push_from("$v0")
@@ -109,7 +164,7 @@ def program_to_MIPS(main_expr: Expression, global_funcs: List[Function_Definitio
         t += "move $sp, $fp\n"
         t += "j $ra\n"
 
-        #Methods
+        #--Build Methods--##
         for func in type.functions:
             aux_function = Function_Definition("aux", func.argument_names+["self"], func.body)
             t += function_to_mips(aux_function, g, g.type_and_function_to_id[(type.name,func.name)])
@@ -214,11 +269,42 @@ def __expression_to_MIPS(expr_node, g: Globals, is_result_used, c: Context):
         
         for i in range(0, len(expr_node.arguments)):
             t += __expression_to_MIPS(expr_node.arguments[i], g, True, c)
+        
+        t += f"""
+            ori $a0, $0, {g.type_to_size[expr_node.type_name]}
+            ori $v0, $0, 9
+            syscall
+            
+            ori $a0, $0, {g.type_to_id[expr_node.type_name]}
+            sw $a0, 0($v0)
+        """
+        t += c.push_from("$v0")
 
-        t += f"\njal _func{g.type_to_constructor[expr_node.type_name]}\n"
+        t += f"\njal _func{g.type_to_initializer[expr_node.type_name]}\n"
         
         for i in range(0, len(expr_node.arguments)):
             t += c.pop_to("$a3")
+        t += c.pop_to("$a3")
+
+        t += c.pop_to("$ra")
+        t += c.pop_to("$fp")
+
+        if is_result_used:
+            t += c.push_from("$v0")
+
+    elif isinstance(expr_node, Base_Function_Call):
+        t += c.push_from("$fp")
+        t += c.push_from("$ra")
+        
+        for i in range(0, len(expr_node.arguments)):
+            t += __expression_to_MIPS(expr_node.arguments[i], g, True, c)
+        t += __expression_to_MIPS(Identifier("self"), g, True, c)
+
+        t += f"\njal _func{g.type_and_function_to_id[(expr_node.ancestor_name, expr_node.func_name)]}\n"
+        
+        for i in range(0, len(expr_node.arguments)):
+            t += c.pop_to("$a3")
+        t += c.pop_to("$a3")
 
         t += c.pop_to("$ra")
         t += c.pop_to("$fp")
@@ -309,7 +395,7 @@ def __expression_to_MIPS(expr_node, g: Globals, is_result_used, c: Context):
         t += __expression_to_MIPS(expr_node.left, g, True, c)
         t += __expression_to_MIPS(expr_node.right, g, True, c)
         
-        if expr_node.operator_type in ["+", "-", "*", "/", "^"]: #@@TODO: ^
+        if expr_node.operator_type in ["+", "-", "*", "/"]:
             t += c.pop_to("$f2")
             t += c.pop_to("$f1")
             
@@ -339,7 +425,7 @@ def __expression_to_MIPS(expr_node, g: Globals, is_result_used, c: Context):
             if is_result_used:
                 t += c.push_from("$a2")
         
-        elif expr_node.operator_type == "@": #TODO: llevar de numero a string implicitamente
+        elif expr_node.operator_type == "@":
             t += c.pop_to("$a1")
             t += c.pop_to("$a0")
             t += c.push_from("$fp")
