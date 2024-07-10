@@ -174,6 +174,7 @@ class Type_Definition(Expression):
         self.initializers_type_name_annotations = initializers_type_name_annotations
 
         self.initializer_parameter_types = []
+        self.variable_parameter_types = []
         self.parent: Type_Definition = None
         self.inhereted_functions = []
 
