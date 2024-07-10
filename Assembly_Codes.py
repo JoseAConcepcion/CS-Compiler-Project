@@ -132,4 +132,35 @@ concat_strings:
 
     #Return
     j $ra
+
+string_cmp:
+    #Set base
+    move $fp, $sp
+
+    #Load arguments
+    lw $a2, 0($fp)
+    lw $a3, 4($fp)
+
+    #Loop
+    _sccw1:
+        ori $a0, $0, 0
+        lb $a0, 0($a2)
+        ori $a1, $0, 0
+        lb $a1, 0($a3)
+        bne $a0, $a1, _sccw1e_false
+
+        beqz $a0, _sccw1e_true
+        
+        addi $a2, $a2, 1
+        addi $a3, $a3, 1
+        j _sccw1
+    _sccw1e_true:
+        ori $v0, $0, 1
+        j _sccw1e
+    _sccw1e_false:
+        ori $v0, $0, 0
+    _sccw1e:
+
+    #Return
+    j $ra
 """
