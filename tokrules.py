@@ -1,7 +1,12 @@
+from ply.lex import TOKEN
+import tokenize
+OurString = tokenize.group(r"'[^\n'\\]*(?:\\.[^\n'\\]*)*'",
+               r'"[^\n"\\]*(?:\\.[^\n"\\]*)*"')
 #Lista de palabras reservadas
 reserved = {    
     'if' : 'IF',
     'else' : 'ELSE',
+    'elif' : 'ELIF',
     'while' : 'WHILE',
     'for' : 'FOR',
     'range': 'RANGE',
@@ -12,7 +17,6 @@ reserved = {
     'true': 'TRUE',
     'false': 'FALSE',
     'type': 'TYPE',
-    'self': 'SELF',
     'new': 'NEW',
     'inherits': 'INHERITS',
     'base': 'BASE',
@@ -67,7 +71,6 @@ tokens = [
    'OR',
    'NOT',
    'DOT',
-   'CONFORMS',
    'DOUBLEDOTS',
    'GENERATOR',
    'ID',
@@ -111,11 +114,10 @@ t_EQUAL = r'=='
 t_DIFFERENT = r'!='
 t_MINOREQUAL = r'<='
 t_MAJOREQUAL = r'>='
-t_AND = r'&&'
+t_AND = r'&'
 t_OR = r'\|'
 t_NOT = r'!'
 t_DOT = r'\.'
-t_CONFORMS = r'<='
 t_DOUBLEDOTS = r':'
 t_GENERATOR = r'\|\|'
 
@@ -127,9 +129,8 @@ def t_NUMBER(t):
     return t
 
 #Expresion regular para STRING
+@TOKEN(OurString)
 def t_STRING(t):
-    r'".*"'
-    t.value = t.value[1:-1]
     return t
 
 # Define a rule so we can track line numbers
