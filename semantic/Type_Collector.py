@@ -14,8 +14,8 @@ class TypeCollector(object):
     def visit(self, node):
         pass
 
-    @visitor.when(nodes.ProgramNode)
-    def visit(self, node: nodes.ProgramNode):
+    @visitor.when(nodes.Program_Root)
+    def visit(self, node: nodes.Program_Root):
         self.context = Context()
 
         ### Add the built-in types ###
@@ -55,8 +55,14 @@ class TypeCollector(object):
         range_type = self.context.create_type('Range')
         range_type.set_parent(object_type)
 
-        for declaration in node.declarations:
-            self.visit(declaration)
+        # todo Iterables
+
+        for types in node.type_list:
+            self.visit(types)
+        for functions in node.function_list:
+            self.visit(functions)
+        for protocols in node.protocol_list:
+            self.visit(protocols)
 
         return self.context, self.errors
 
@@ -65,7 +71,23 @@ class TypeCollector(object):
         try:
             self.context.create_type(node.name, node)
         except SemanticError as e:
-           self.errors.append(e)
+            self.errors.append(e)
+            if node.type in self.context.types:
+                self.context.types[node.name] = ErrorType()
+            else:
+                self.errors.append(SemanticError(f"Type {node.name} already exists")) #, node.line, node.column handle later
+            
+           
+    @visitor.when(nodes.Function_Definition)
+    def visit(self, node: nodes.Function_Definition):
+        try:
+            self.context.create_function(node.name, node)
+        except SemanticError as e:
+            self.errors.append(e)
+            if node.name in self.context.functions:
+                self.context.functions[node.name] = ErrorType()
+            else:    
+                self.errors.append(SemanticError(f"Function {node.name} already exists"))
 
     @visitor.when(nodes.Protocol_Definition)
     def visit(self, node: nodes.Protocol_Definition):
@@ -73,3 +95,8 @@ class TypeCollector(object):
             self.context.create_protocol(node.name, node)
         except SemanticError as e:
             self.errors.append(e)
+            if node.name in self.context.protocols:
+                self.context.protocols[node.name] = ErrorType()
+            else:    
+                self.errors.append(SemanticError(f"Protocol {node.name} already exists"))
+            

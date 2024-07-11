@@ -14,9 +14,9 @@ class TypeBuilder:
     def visit(self, node):
         pass
 
-    @visitor.when(ProgramNode)
-    def visit(self, node: ProgramNode):
-        for declaration in node.declarations:
+    @visitor.when(Program_Root)
+    def visit(self, node: Program_Root):
+        for declaration in node.main_expression:
             self.visit(declaration)
 
     @visitor.when(Type_Definition)
@@ -30,3 +30,11 @@ class TypeBuilder:
         self.current_type.param_names, self.current_type.param_types = (
             self.param_names_and_types(node)
         )
+    
+    def param_names_and_types(self, node):
+        param_names = []
+        param_types = []
+        for name, type_name in zip(node.initializer_parameters, node.initializers_type_name_annotations):
+            param_names.append(name)
+            param_types.append(self.context.get_type(type_name))
+        return param_names, param_types
