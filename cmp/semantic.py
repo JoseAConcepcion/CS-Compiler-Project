@@ -150,6 +150,13 @@ class IntType(Type):
     def __eq__(self, other):
         return other.name == self.name or isinstance(other, IntType)
 
+class UndefinedType(Type):
+    def __init__(self):
+        Type.__init__(self, "<undefined>")
+
+    def __eq__(self, other):
+        return isinstance(other, UndefinedType) or self.name == other.name
+
 class Function:
     def __init__(
         self, name, param_names, param_types, return_type, current_node=None, body=None
