@@ -87,7 +87,7 @@ def myexp(x):
 
 	return result
 
-def mylog(x):
+def myln(x):
 	#Reduce x
 	x_reduced = x
 	t = 0
@@ -102,7 +102,7 @@ def mylog(x):
 	i = 0
 	x_to_the_ip1 = x_reduced
 	sign_mult = 1
-	while i < 10:
+	while i < 20:
 		result_taylor += sign_mult * x_to_the_ip1/(i+1)
 		
 		x_to_the_ip1 = x_to_the_ip1*x_reduced
@@ -111,6 +111,9 @@ def mylog(x):
 	
 	return result_taylor + t*math.log(2)
 
+def my_log_base(base, x):
+	return myln(x)/myln(base)
+
 #--Bucle principal--#
 while True:
 	#--Código específico--#
@@ -118,10 +121,11 @@ while True:
 	draw_grid()
 
 
-	ss = lambda x: math.log(x)
+	ss = lambda x: math.log(x, 7)
+	myf = lambda x: my_log_base(7, x)
 
 	draw_function(ss, color=(255,0,0))
-	draw_function(mylog,color=(0,255,0))
+	draw_function(myf,color=(0,255,0))
 
 	#--Events--#
 	for event in pygame.event.get():
