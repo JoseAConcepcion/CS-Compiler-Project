@@ -1,5 +1,7 @@
 from ply.lex import TOKEN
 import tokenize
+OurDecNumber = tokenize.Decnumber + tokenize.maybe(tokenize.Exponent)
+OurNumber = tokenize.group(tokenize.Pointfloat, OurDecNumber)
 OurString = tokenize.group(r"'[^\n'\\]*(?:\\.[^\n'\\]*)*'",
                r'"[^\n"\\]*(?:\\.[^\n"\\]*)*"')
 #Lista de palabras reservadas
@@ -19,7 +21,6 @@ reserved = {
     'type': 'TYPE',
     'new': 'NEW',
     'inherits': 'INHERITS',
-    'base': 'BASE',
     'Object': 'OBJECT',
     'Number': 'NUMBERTYPE',
     'String': 'STRINGTYPE',
@@ -122,13 +123,10 @@ t_DOUBLEDOTS = r':'
 t_GENERATOR = r'\|\|'
 
 
-# Expresión regular para NUMBER
+@TOKEN(OurNumber)
 def t_NUMBER(t):
-    r'\d+'
-    t.value = int(t.value)
     return t
 
-#Expresion regular para STRING
 @TOKEN(OurString)
 def t_STRING(t):
     return t

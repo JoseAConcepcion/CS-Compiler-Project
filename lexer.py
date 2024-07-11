@@ -130,7 +130,7 @@ let squares = [x^2 || x in range(1,10)] in print(x);
 
 '''
 
-lexer.input(data)
+lexer.input('print("The message is \"Hello World\"");')
 
 # Procesar tokens
 while True:         

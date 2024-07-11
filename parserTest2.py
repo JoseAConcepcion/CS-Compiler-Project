@@ -267,9 +267,9 @@ def p_type_def(p):
         if isinstance(item, Function_Definition):
             functions.append(item)
         else:
-            variable_names += item[0].name
-            variable_types_anotations += item[0].type
-            init_expressions += item[1]
+            variable_names.append(item[0].name)
+            variable_types_anotations.append(item[0].type)
+            init_expressions.append(item[1])
     p[0] = Type_Definition(p[2], variable_names, params_names, init_expressions, functions, 
                            p[4][0] if p[4] is not None else None, p[4][1] if p[4] is not None else None, 
                            variable_types_anotations, params_types)
@@ -428,10 +428,10 @@ def p_if_hl(p):
         opt_elif = p[4]
         while opt_elif.next != []:
             opt_elif = opt_elif.next
-        opt_elif.next = p[6]
+        opt_elif.next = If(True,p[6],None)
         p[0] = If(p[2],p[3], p[4])
     else:
-        p[0] = If(p[2],p[3], p[6])
+        p[0] = If(p[2],p[3], If(True,p[6],None))
 
 def p_if_exp(p):
     "expression : IF expression_parenthized expression opt_elifs ELSE expression"
@@ -439,10 +439,10 @@ def p_if_exp(p):
         opt_elif = p[4]
         while opt_elif.next != []:
             opt_elif = opt_elif.next
-        opt_elif.next = p[6]
+        opt_elif.next = If(True,p[6],None)
         p[0] = If(p[2],p[3], p[4])
     else:
-        p[0] = If(p[2],p[3], p[6])
+        p[0] = If(p[2],p[3], If(True,p[6],None))
 
 
 def p_opt_elifs(p):
@@ -494,12 +494,23 @@ def p_destroyablel(p):
     destroyablel : ID
     | ID DOT ID    
     """
-    
+    if(len(p)==2):
+        p[0] = (p[1],False,None)
+    else:
+        p[0] = (p[3],p[1]=='self',None)
+        
+def p_ee(p):
+    "expression : ID DOT member_resolut"    
+    p[0] = Dot_Operator(Identifier(p[1]),p[3])
 def p_destroyabler(p):
     """
     destroyabler : ID LBRAC expression RBRAC
     | ID DOT ID LBRAC expression RBRAC
     """
+    if len(p)==5:
+        p[0] = (p[1],False,p[3])
+    else:
+        p[0] = (p[3],p[1]=='self',p[5])
     
 def p_expression_binop(p):
     """expression : expression PLUS expression
@@ -524,7 +535,7 @@ def p_expression_binop(p):
     | destroyabler DESTRUCTASIGN expression
     """
     if p[2] == "@@":
-        p[0] = Binary_Operator('@', p[1], Binary_Operator('@', p[3], " "))
+        p[0] = Binary_Operator('@', p[1], Binary_Operator('@', " ",p[3]))
     elif(p[2] == "^"):
         p[0] = Exponentiation_Operator(p[1], p[3])
     elif p[2] == "is":
@@ -532,9 +543,10 @@ def p_expression_binop(p):
     elif p[2] == "as":
         p[0] == As_Keyword(p[1],p[3])
     elif p[2] == ":=":
-        pass  
+        data = p[1]
+        p[0] = Variable_Destructive_Assignment(data[0],p[3], data[1],data[2])  
     else:
-        Binary_Operator(p[2],p[1],p[3])
+        p[0]=Binary_Operator(p[2],p[1],p[3])
 
 
 def p_expression_binop_hl(p):
@@ -558,7 +570,7 @@ def p_expression_binop_hl(p):
     | destroyabler DESTRUCTASIGN high_level_expression
     """
     if p[2] == "@@":
-        p[0] = Binary_Operator(binary_operators['@'], p[1], Binary_Operator(binary_operators['@'], p[3], " "))
+        p[0] = Binary_Operator(binary_operators['@'], p[1], Binary_Operator(binary_operators['@'], " ", p[3]))
     elif(p[2] == "^"):
         p[0] = Exponentiation_Operator(p[1], p[3])
     elif p[2] == "is":
@@ -566,13 +578,10 @@ def p_expression_binop_hl(p):
     elif p[2] == "as":
         p[0] == As_Keyword(p[1],p[3])
     elif p[2] == ":=":
-        if isinstance(p[1], Identifier):     
-            p[0]=Variable_Destructive_Assignment(p[1],p[3],False, None)
-        elif(isinstance(p[1],Dot_Operator)):
-            p[0] = Variable_Destructive_Assignment(p[1].right.name, p[3], True, None)     
-        else: p[0] = Variable_Destructive_Assignment(p[1][0], p[3], p[1][2], p[1][1])        
+        data = p[1]
+        p[0] = Variable_Destructive_Assignment(data[0],p[3], data[1],data[2])       
     else:
-        Binary_Operator(p[2],p[1],p[3])
+        p[0]=Binary_Operator(p[2],p[1],p[3])
 
 
 def p_destroyable(p):
@@ -813,7 +822,7 @@ type C inherits A {
     print(42);
     print((((1 + 2) ^ 3) * 4) / 5);
     print("Hello World");
-    print("The message is \"Hello World\"");
+    //print("The message is \"Hello World\"");
     print("The meaning of life is " @ 42);
     print(sin(2 * PI) ^ 2 + cos(3 * PI / log(4, 64)));
     {
@@ -823,7 +832,7 @@ type C inherits A {
     };
 
     
-    print(tan(PI) ** 2 + cot(PI) ** 2);
+    print(tan(PI) ^ 2 + cot(PI) ^ 2);
 
     let msg = "Hello World" in print(msg);
     let number = 42, text = "The meaning of life is" in
@@ -939,10 +948,5 @@ type C inherits A {
     let awacate: QueRico = new QueRico("siuuuu" @@ banda @ yaes + 4*5^2 @@ temporada_de_awacate == true) in aguacate.cascara("verde").lo_de_adentro(43*-1).semilla(true);
 }
 """
-print(parser.parse('''type Range(min:Number, max:Number) {
-    min = min;
-    max = max;
-    current = min - 1;
-    next(): Boolean => (self.current := self.current + 1) < self.max;
-    current(): Number => self.current;
-}''', debug = log))
+ans = parser.parse(data)
+print(ans)
