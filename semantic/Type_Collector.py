@@ -52,7 +52,7 @@ class TypeCollector(object):
 
         
         # Create range
-        range_type = self.context.create_range('Range')
+        range_type = self.context.create_type('Range')
         range_type.set_parent(object_type)
 
         for declaration in node.declarations:

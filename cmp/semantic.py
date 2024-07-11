@@ -220,6 +220,29 @@ class Context:
     def __repr__(self):
         return str(self)
     
+    def create_function(
+        self,
+        name: str,
+        param_names: "list[str]",
+        param_types: list,
+        return_type,
+        current_node=None,
+        body: list = [],
+    ):
+        if name in self.types:
+            raise SemanticError(
+                f"Function with the same name ({name}) already in context."
+            )
+        function = self.functions[name] = Function(
+            name,
+            param_names,
+            param_types,
+            return_type,
+            current_node=current_node,
+            body=body,
+        )
+        return function
+    
     def create_protocol(self, name: str, current_node=None):
         if name in self.protocols:
             raise SemanticError(
