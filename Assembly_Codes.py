@@ -193,4 +193,69 @@ is_int_in_array_zero_ended: #takes int and array_reference
     move $sp, $fp
     j $ra
 
+array_current:
+    #Set base
+    move $fp, $sp #A
+
+    #Load the current index and convert it to int
+    lw $a0, 0($fp)
+    lw $a0, -8($a0)
+
+    mtc1 $a0, $f0
+    cvt.w.s $f0, $f0
+    mfc1 $a0, $f0
+
+    #Get the current position
+    lw $a1, 0($fp)
+    li $a3, 4
+    mul $a0, $a0, $a3
+    add $a1, $a1, $a0
+
+    #Load the current element
+    lw $v0, 0($a1)
+
+    #Return
+    move $sp, $fp
+    j $ra
+
+array_next:
+    #Set base
+    move $fp, $sp
+
+    #Get current index and add 1 to it
+    lw $a3, 0($fp)
+    lw $a0, -8($a3)
+    mtc1 $a0, $f0
+
+    li $a1, 1
+    mtc1 $a1, $f1
+    cvt.s.w $f1, $f1
+
+    add.s $f0, $f0, $f1
+    
+    #Store new current index
+    mfc1 $a0, $f0
+    sw $a0, -8($a3)
+
+    #Get array size
+    lw $a1, -4($a3)
+    mtc1 $a1, $f1
+
+    #Compare to new current index
+    c.lt.s $f0, $f1
+
+    bc1f _ancmpf
+                
+    ori $v0, $0, 1
+    j _ancmpe
+
+    _ancmpf:
+    ori $v0, $0, 0
+
+    _ancmpe:
+
+    #Return
+    move $sp, $fp
+    j $ra
+
 """

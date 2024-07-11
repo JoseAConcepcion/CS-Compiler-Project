@@ -6,13 +6,14 @@ class Globals:
         self.data_segment = """
             .data
             _fl0: .float 0.0
+            _fl1: .float -1.0
             _str0: .asciiz \"\"
             _str1: .asciiz \"Instancia de objeto, de tipo dinamico con id interno: \"
             _str2: .asciiz \"Pues... un array...\"
             _str3: .asciiz \"False\"
             _str4: .asciiz \"True\"
         """
-        self.next_float_id = 1
+        self.next_float_id = 2
         self.next_str_id = 5
         self.next_while_id = 1
         self.next_comparison_id = 1
@@ -27,6 +28,7 @@ class Globals:
         self.type_and_function_to_id = {} #(key, value) = ((type_name_in_code, function_name_in_code), corresponding_label_number_in_assembly)
         self.type_and_member_to_offset = {} #(key, value) = ((type_name_in_code, member_name_in_code), offset_from_start_of_object)
         self.type_to_size = {} #(key, value) = (type_name, size_in_bytes)
+        self.protocols_by_name = {} #(key, value) = (protocol_name, protocol_definition)
 
 class Context:
     def __init__(self):
@@ -62,7 +64,7 @@ def function_to_mips(func: Function_Definition, g: Globals, func_id: int):
         t += "j $ra\n"
         return t
 
-def program_to_MIPS(main_expr: Expression, global_funcs: List[Function_Definition], global_types: List[Type_Definition]):
+def program_to_MIPS(main_expr: Expression, global_funcs: List[Function_Definition], global_types: List[Type_Definition], global_protocols: List[Protocol_Definition]):
     
     #Preamble
     t = ASSEMBLY_TEXT_PREAMBLE
@@ -73,7 +75,7 @@ def program_to_MIPS(main_expr: Expression, global_funcs: List[Function_Definitio
         g.func_to_id[func.name] = g.next_func_id
         g.next_func_id += 1
     
-    #Calculate type ids, sizes, func_ids, offsets, etc.
+    #For each type, calculate ids, sizes, func_ids, offsets, etc.
     for type in global_types:
         g.type_to_size[type.name] = -1
     
@@ -140,6 +142,20 @@ def program_to_MIPS(main_expr: Expression, global_funcs: List[Function_Definitio
     for i in range(len(global_types)):
         g.data_segment += f"_tpy{g.FIRST_TYPE_ID+i}_is, "
     g.data_segment += "0 \n\n"
+
+    #Calculate protocol stuff (type id, size, offset...)
+    for protocol in global_protocols:
+        g.protocols_by_name[protocol.name] = protocol
+        
+        g.type_to_id[protocol.name] = g.next_type_id
+        g.next_type_id += 1
+
+        offset = 4
+        for func_name in protocol.func_names:
+            g.type_and_member_to_offset[(protocol.name, func_name)] = offset
+            offset += 4
+        
+        g.type_to_size[protocol.name] = offset
 
     #Translate the functions to assembly
     for func in global_funcs:
@@ -210,7 +226,23 @@ def program_to_MIPS(main_expr: Expression, global_funcs: List[Function_Definitio
 
     return g.data_segment+t
 
-def __expression_to_MIPS(expr_node, g: Globals, is_result_used, c: Context):
+#Uso: se mete la referencia a la instancia del tipo en $a3 antes de llamar a la funcion. La referencia al protocolo se retorna en $v0
+def __type_to_protocol(type_name: str, protocol_name: str, g: Globals):
+    t += f"""
+        ori $a0, $0, {g.type_to_size[protocol_name]}
+        ori $v0, $0, 9
+        syscall
+        
+        sw $a3, 0($v0)
+    """
+
+    protocol = g.protocols_by_name[protocol_name]
+
+    for func_name in protocol.func_names:
+        t += f"la $a0, _func{g.type_and_function_to_id[(type_name, func_name)]}"
+        t += f"sw $a3, {g.type_and_member_to_offset[(protocol_name, func_name)]}($v0)"
+
+def __expression_to_MIPS(expr_node: Expression, g: Globals, is_result_used: bool, c: Context):
     t = ""
     
     if isinstance(expr_node, ASSEMBLY_INSERT):
@@ -261,9 +293,13 @@ def __expression_to_MIPS(expr_node, g: Globals, is_result_used, c: Context):
         t += __expression_to_MIPS(expr_node.left, g, True, c)
         t += c.pop_to("$a0")
         
-        if isinstance(expr_node.left.type, Array_Type): #TODO: next, current?
+        if isinstance(expr_node.left.type, Array_Type):
             if expr_node.right.name == "length":
                 t += "lw $a1, -4($a0)\n"
+            if expr_node.right.name == "current":
+                t += "la $a1, array_current"
+            if expr_node.right.name == "next":
+                t += "la $a1, array_next"
         elif expr_node.left.type.name == STRING_TYPE_NAME and expr_node.right.name == "length":
             t += c.push_from("$fp")
             t += c.push_from("$ra")
@@ -390,6 +426,7 @@ def __expression_to_MIPS(expr_node, g: Globals, is_result_used, c: Context):
             t += c.push_from("$v0")
 
     elif isinstance(expr_node, Variable_Declarations):
+        t += "\n#pepe\n"
         for name, value in zip(expr_node.names, expr_node.values):
             t += __expression_to_MIPS(value, g, True, c)
             if name in c.local_variables:
@@ -397,7 +434,7 @@ def __expression_to_MIPS(expr_node, g: Globals, is_result_used, c: Context):
             else:
                 c.local_variables[name] = [c.sp_offset]
         
-        t += __expression_to_MIPS(expr_node.body, g, is_result_used, c)
+        t += __expression_to_MIPS(expr_node.body, g, True, c)
         if is_result_used:
             t += c.pop_to("$v0")
         
@@ -405,12 +442,13 @@ def __expression_to_MIPS(expr_node, g: Globals, is_result_used, c: Context):
             c.local_variables[name].pop()
             if c.local_variables[name] == []:
                 del c.local_variables[name]
-            c.pop_to("$a0")
+            t += c.pop_to("$a0")
 
         if is_result_used:
             t += c.push_from("$v0")
+        t += "\n#cuco\n"
 
-    elif isinstance(expr_node, Variable_Destructive_Assignment): #TODO: bounds check on array?
+    elif isinstance(expr_node, Variable_Destructive_Assignment):
         t += __expression_to_MIPS(expr_node.expression, g, True, c)
         
         #Get the index (if its an array element assignment), convert it to int, and then to offset (that is: multiply it by 4)
@@ -472,7 +510,7 @@ def __expression_to_MIPS(expr_node, g: Globals, is_result_used, c: Context):
         t += __expression_to_MIPS(expr_node.left, g, True, c)
         t += __expression_to_MIPS(expr_node.right, g, True, c)
         
-        if expr_node.operator_type in ["+", "-", "*", "/"]:
+        if expr_node.operator_type in ["+", "-", "*", "/", "%"]:
             t += c.pop_to("$f2")
             t += c.pop_to("$f1")
             
@@ -485,6 +523,19 @@ def __expression_to_MIPS(expr_node, g: Globals, is_result_used, c: Context):
                 t += "mul.s $f3, $f1, $f2\n"
             elif expr_node.operator_type == "/":
                 t += "div.s $f3, $f1, $f2\n"
+            elif expr_node.operator_type == "%":
+                t += """
+                    cvt.w.s $f1, $f1
+                    cvt.w.s $f2, $f2
+                    
+                    mfc1 $a1, $f1
+                    mfc1 $a2, $f2
+
+                    rem $a1, $a1, $a2
+
+                    mtc1 $a1, $f1
+                    cvt.s.w $f3, $f1
+                """
             
             #Push result
             if is_result_used:
@@ -659,9 +710,15 @@ def __expression_to_MIPS(expr_node, g: Globals, is_result_used, c: Context):
 
     elif isinstance(expr_node, Array_Literal):
         if is_result_used:
-            t += f"\nori $a0, $0, {4*(len(expr_node.expressions)+1)}\n"
+            t += f"\nori $a0, $0, {4*(len(expr_node.expressions)+2)}\n"
             t += "ori $v0, $0, 9\nsyscall\n"
             
+            #Store Array Current
+            t += f"l.s $f0, _fl1\nmfc1 $a0, $f0\n"
+            t += "sw $a0, 0($v0)\n"
+            t += "addi $v0, $v0, 4\n"
+
+            #Store Array Length 
             t += f"ori $a0, $0, {len(expr_node.expressions)}\n"
             t += "mtc1 $a0, $f0\ncvt.s.w $f0, $f0\nmfc1 $a0, $f0\n"
             t += "sw $a0, 0($v0)\n"
