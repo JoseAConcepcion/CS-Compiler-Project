@@ -3,12 +3,12 @@ import tokrules
 from tokrules import tokens
 from ply import yacc
 from AST_Nodes import *
+import logging
 lexer = lex.lex(module=tokrules)
 
 sErrorList = []
 
 precedence = (
-    # ("right", "PRINT","SQRT","SIN","COS","EXP","LOG","RAND"),
     ("right", "LET", "IN"),
     ("right", "IF", "ELIF", "ELSE"),
     ("right", "WHILE", "FOR"),
@@ -94,10 +94,12 @@ def p_protocol(p):
     "protocol_definition : PROTOCOL ID opt_extends LBRACE protocol_methods RBRACE optional_semicolon"
     methodsNames = []
     methodsTypes = []
+    returnTypes = []
     for item in p[5]:
         methodsNames.append(item.name)
-        methodsTypes.append(item.type_name_annotations)
-    p[0] = Protocol_Definition(p[2],methodsNames, methodsTypes, p[3].name, p[3].type)
+        methodsTypes.append(item.argument_type_annotations)
+        returnTypes.append(item.return_type_annotation)
+    p[0] = Protocol_Definition(p[2],methodsNames, methodsTypes, returnTypes, p[3].name if p[3] is not None else None)
 
 
 def p_protocol_extends(p):
@@ -127,13 +129,7 @@ def p_protocol_method(p):
     for element in p[3]:        
         names.append(element.name)
         types.append(element.type)
-    # id = ID(p[1], p[6])
-    # params = Params(p[3])
-    # for i in p[3]:
-    #     i.parent = params
     p[0] = Function_Definition(p[1],names,None,types,p[6])
-    # id.parent = p[0]
-    # params.parent = p[0]
 
 def p_args(p):
     """
@@ -213,7 +209,6 @@ def p_func_call_args_list_rem_e(p):
 
 def p_function_definition(p):
     "function_definition : FUNCTION ID LPAREN func_params RPAREN type_of ARROW high_level_expression"
-    # id = ID(p[2], p[6])
     names = []
     types = []
     for item in p[4]:
@@ -235,8 +230,6 @@ def p_function_definition_fullform(p):
 def p_func_params(p):
     "func_params : func_params_list"
     p[0] = p[1]
-    # for i in p[1]:
-    #     i.parent = p[0]
 
 
 def p_func_params_list(p):
@@ -270,14 +263,16 @@ def p_type_def(p):
     for item in p[3]:
         params_names.append(item.name)
         params_types.append(item.type)
-    for item in p[6]:
-        if isinstance(item, Variable_Declarations):
-            variable_names += item.names[0]
-            variable_types_anotations += item.type_name_annotations[0]
-            init_expressions += item.body
-        elif isinstance(item, Function_Definition):
+    for item in p[6]:        
+        if isinstance(item, Function_Definition):
             functions.append(item)
-    p[0] = Type_Definition(p[2],variable_names, params_names,init_expressions, functions, p[4][0], p[4][1], variable_types_anotations, params_types)
+        else:
+            variable_names += item[0].name
+            variable_types_anotations += item[0].type
+            init_expressions += item[1]
+    p[0] = Type_Definition(p[2], variable_names, params_names, init_expressions, functions, 
+                           p[4][0] if p[4] is not None else None, p[4][1] if p[4] is not None else None, 
+                           variable_types_anotations, params_types)
 
 
 def p_optional_inheritance(p):
@@ -372,9 +367,7 @@ def p_member_var(p):
 
 def p_member_var_dec(p):
     "member_var : id ASIGN high_level_expression"
-    p[0] = Variable_Declarations([p[1]], p[3])
-    # p[1].parent = p[0]
-    # p[3].parent = p[0]
+    p[0] = (p[1], p[3])
 
 
 def p_expression_tbl(p):
@@ -392,8 +385,6 @@ def p_high_level_expression(p):
 def p_expression_block(p):
     "expression_block : LBRACE expression_block_list RBRACE"
     p[0] = Expression_Block(p[2])
-    # for i in p[2]:
-    #     i.parent = p[0]
 
 
 def p_expression_block_list(p):
@@ -409,33 +400,20 @@ def p_expression_block_list_e(p):
 def p_hl_let(p):
     """high_level_expression : LET assign_values IN high_level_expression"""
     p[0] = Variable_Declarations(p[2][0], p[2][1],p[4])
-    # for i in p[2]:
-    #     i.parent = p[0]
-    # p[4].parent = p[0]
 
 
 def p_let(p):
     """expression : LET assign_values IN expression"""
     p[0] = Variable_Declarations(p[2][0], p[2][1],p[4])
-    # for i in p[2]:
-    #     i.parent = p[0]
-    # p[4].parent = p[0]
 
 
 def p_assign_values(p):
     """assign_values : id ASIGN expression rem_assignments"""
-    # assign = Assign(p[1], p[3])
-    # p[1].parent = assign
-    # p[3].parent = assign
-    p[0] = [p[1]+ p[5][0], [p[3]] + p[5][1]]
+    p[0] = [[p[1]]+ p[4][0], [p[3]] + p[4][1]]
 
 
 def p_rem_assignments(p):
     "rem_assignments : COMMA id ASIGN expression rem_assignments"
-
-    # assign = Assign(p[2], p[4])
-    # p[2].parent = assign
-    # p[4].parent = assign
     p[0] = [[p[2]]+ p[5][0], [p[4]] + p[5][1]]
 
 
@@ -446,49 +424,29 @@ def p_rem_assignments_empty(p):
 
 def p_if_hl(p):
     "high_level_expression : IF expression_parenthized expression opt_elifs ELSE high_level_expression"
-    # first = Case(p[2], p[3], "if")
-    # p[2].parent = first
-    # p[3].parent = first
-
-    # else_cond = TrueLiteral()
-    # last = Case(else_cond, p[6], "else")
-    # else_cond.parent = last
-    # p[6].parent = last
-    opt_elif = p[4]
-    while opt_elif.next != []:
-        opt_elif = opt_elif.next
-    opt_elif.next = p[6]
-    p[0] = If(p[2],p[3], p[4])
-
-    # for i in p[0].case_list:
-    #     i.parent = p[0]
-
+    if p[4]!=[]:
+        opt_elif = p[4]
+        while opt_elif.next != []:
+            opt_elif = opt_elif.next
+        opt_elif.next = p[6]
+        p[0] = If(p[2],p[3], p[4])
+    else:
+        p[0] = If(p[2],p[3], p[6])
 
 def p_if_exp(p):
     "expression : IF expression_parenthized expression opt_elifs ELSE expression"
-    # first = Case(p[2], p[3], "if")
-    # p[2].parent = first
-    # p[3].parent = first
-
-    # else_cond = TrueLiteral()
-    # last = Case(else_cond, p[6], "else")
-    # else_cond.parent = last
-    # p[6].parent = last
-    opt_elif = p[4]
-    while opt_elif.next != []:
-        opt_elif = opt_elif.next
-    opt_elif.next = p[6]
-    p[0] = If(p[2],p[3], p[4])
-
-    # for i in p[0].case_list:
-    #     i.parent = p[0]
+    if p[4]!=[]:
+        opt_elif = p[4]
+        while opt_elif.next != []:
+            opt_elif = opt_elif.next
+        opt_elif.next = p[6]
+        p[0] = If(p[2],p[3], p[4])
+    else:
+        p[0] = If(p[2],p[3], p[6])
 
 
 def p_opt_elifs(p):
     "opt_elifs : ELIF expression_parenthized expression opt_elifs"
-    # elif_cond = Case(p[2], p[3], "elif")
-    # p[2].parent = elif_cond
-    # p[3].parent = elif_cond
     p[0] = If(p[2], p[3], p[4])
 
 
@@ -515,15 +473,11 @@ def p_for(p):
 def p_while_hl(p):
     "high_level_expression : WHILE expression_parenthized high_level_expression"
     p[0] = While(p[2], p[3])
-    # p[2].parent = p[0]
-    # p[3].parent = p[0]
 
 
 def p_while(p):
     "expression : WHILE expression_parenthized expression"
     p[0] = While(p[2], p[3])
-    # p[2].parent = p[0]
-    # p[3].parent = p[0]
 
 
 def p_expression_group(p):
@@ -535,13 +489,18 @@ def p_expression_parenthized(p):
     "expression_parenthized : LPAREN expression RPAREN"
     p[0] = p[2]
 
-def p_indexed_destructive_asign(p):
-    """indexed_destructive_asign : id LBRAC expression RBRAC 
-    | id DOT id LBRAC expression RBRAC"""
-    if(p[2]!= "."):
-        p[0] = (p[1], p[3], False)
-    else:
-        p[0] = (p[3], p[5], True)
+def p_destroyablel(p):
+    """
+    destroyablel : ID
+    | ID DOT ID    
+    """
+    
+def p_destroyabler(p):
+    """
+    destroyabler : ID LBRAC expression RBRAC
+    | ID DOT ID LBRAC expression RBRAC
+    """
+    
 def p_expression_binop(p):
     """expression : expression PLUS expression
     | expression MINUS expression
@@ -559,34 +518,23 @@ def p_expression_binop(p):
     | expression MAJOREQUAL expression
     | expression MINOR expression
     | expression MAJOR expression
-    | destroyable DESTRUCTASIGN expression
-    | member_resolute DESTRUCTASIGN expression
-    | indexed_destructive_asign DESTRUCTASIGN expression
     | expression IS type_test
     | expression AS type_test
+    | destroyablel DESTRUCTASIGN expression
+    | destroyabler DESTRUCTASIGN expression
     """
     if p[2] == "@@":
-        p[0] = Binary_Operator(binary_operators['@'], p[1], Binary_Operator(binary_operators['@'], p[3], " "))
+        p[0] = Binary_Operator('@', p[1], Binary_Operator('@', p[3], " "))
     elif(p[2] == "^"):
         p[0] = Exponentiation_Operator(p[1], p[3])
     elif p[2] == "is":
         p[0] = Is_Operator(p[1],p[3])
+    elif p[2] == "as":
+        p[0] == As_Keyword(p[1],p[3])
     elif p[2] == ":=":
-        if isinstance(p[1], Identifier):     
-            p[0]=Variable_Destructive_Assignment(p[1],p[3],False, None)
-        elif(isinstance(p[1],Dot_Operator)):
-            p[0] = Variable_Destructive_Assignment(p[1].right.name, p[3], True, None)     
-        else: p[0] = Variable_Destructive_Assignment(p[1][0], p[3], p[1][2], p[1][1])     
+        pass  
     else:
         Binary_Operator(p[2],p[1],p[3])
-    
-    # if p[2] == ":=":
-    #     p[0] = BinOp(left=p[1], op="AD", right=p[3])
-    # else:
-    #     p[0] = BinOp(left=p[1], op=p[2], right=p[3])
-
-    # p[1].parent = p[0]
-    # p[3].parent = p[0]
 
 
 def p_expression_binop_hl(p):
@@ -606,9 +554,8 @@ def p_expression_binop_hl(p):
     | expression MAJOREQUAL high_level_expression
     | expression MINOR high_level_expression
     | expression MAJOR high_level_expression
-    | destroyable DESTRUCTASIGN high_level_expression
-    | member_resolute DESTRUCTASIGN high_level_expression
-    | indexed_destructive_asign DESTRUCTASIGN expression
+    | destroyablel DESTRUCTASIGN high_level_expression
+    | destroyabler DESTRUCTASIGN high_level_expression
     """
     if p[2] == "@@":
         p[0] = Binary_Operator(binary_operators['@'], p[1], Binary_Operator(binary_operators['@'], p[3], " "))
@@ -616,6 +563,8 @@ def p_expression_binop_hl(p):
         p[0] = Exponentiation_Operator(p[1], p[3])
     elif p[2] == "is":
         p[0] = Is_Operator(p[1],p[3])
+    elif p[2] == "as":
+        p[0] == As_Keyword(p[1],p[3])
     elif p[2] == ":=":
         if isinstance(p[1], Identifier):     
             p[0]=Variable_Destructive_Assignment(p[1],p[3],False, None)
@@ -624,14 +573,6 @@ def p_expression_binop_hl(p):
         else: p[0] = Variable_Destructive_Assignment(p[1][0], p[3], p[1][2], p[1][1])        
     else:
         Binary_Operator(p[2],p[1],p[3])
-    # if p[2] == ":=":
-    #     p[0] = BinOp(left=p[1], op="AD", right=p[3])
-    # else:
-    #     p[0] = BinOp(left=p[1], op=p[2], right=p[3])
-
-    # p[0] = BinOp(left=p[1], op=p[2], right=p[3])
-    # p[1].parent = p[0]
-    # p[3].parent = p[0]
 
 
 def p_destroyable(p):
@@ -650,11 +591,8 @@ def p_exp_member_resolute(p):
 
 
 def p_member_resolute(p):
-    "member_resolute : id DOT member_resolut"
-    if(p[1].name== "self"):
-        p[0] = Dot_Operator(p[1], p[3])
-    else:
-        raise Exception("It is no possible to apply a destructive asignment on a private member")
+    "member_resolute : expression DOT member_resolut"
+    p[0] = Dot_Operator(p[1], p[3])
 
 
 
@@ -662,19 +600,21 @@ def p_member_resolut_att(p):
     "member_resolut : ID"
     p[0] = Identifier(p[1])
 
+def p_member_resolut_fc(p):
+    "member_resolut : func_call_next"
+    p[0] = p[1]
+
 
 def p_expression_unary(p):
     """expression : NOT expression
     | MINUS expression %prec UMINUS"""
     p[0] = Unary_Operator(p[1], p[2])
-    # p[2].parent = p[0]
 
 
 def p_expression_unary_hl(p):
     """high_level_expression : NOT high_level_expression
     | MINUS high_level_expression %prec UMINUS"""
     p[0] = Unary_Operator(p[1], p[2])
-    # p[2].parent = p[0]
 
 
 def p_expression_number(p):
@@ -700,7 +640,6 @@ def p_expression_vector(p):
 def p_vector_ext(p):
     "vector : LBRAC func_call_args RBRAC"
     p[0] = Array_Literal(p[2])
-    # p[2].parent = p[0]
 
 
 def p_vector_int(p):
@@ -711,8 +650,6 @@ def p_vector_int(p):
 def p_expression_vector_ind_pare(p):
     "expression :  expression LBRAC expression RBRAC"
     p[0] = Index_Operator(p[1], Index_Expression_With_ABC(p[3],p[1]))
-    # p[1].parent = p[0]
-    # p[3].parent = p[0]
 
 
 def p_expression_pi(p):
@@ -738,7 +675,6 @@ def p_expression_false(p):
 def p_expression_print(p):
     "expression : PRINT LPAREN expression RPAREN"
     p[0] = Function_Call(Identifier("print"), [p[3]])
-    # p[3].parent = p[0]
 
 def p_expression_range(p):
     """
@@ -751,32 +687,26 @@ def p_expression_range(p):
 def p_expression_sqrt(p):
     "expression : SQRT LPAREN expression RPAREN"
     p[0] = Function_Call(Identifier("sqrt"), [p[3]])
-    # p[3].parent = p[0]
 
 
 def p_expression_sin(p):
     "expression : SIN LPAREN expression RPAREN"
     p[0] = Function_Call(Identifier("sin"), [p[3]])
-    # p[3].parent = p[0]
 
 
 def p_expression_cos(p):
     "expression : COS LPAREN expression RPAREN"
     p[0] = Function_Call(Identifier("cos"), [p[3]])
-    # p[3].parent = p[0]
 
 
 def p_expression_exp(p):
     "expression : EXP LPAREN expression RPAREN"
     p[0] = Function_Call(Identifier("exp"), [p[3]])
-    # p[3].parent = p[0]
 
 
 def p_expression_log(p):
     "expression : LOG LPAREN expression COMMA expression RPAREN"
     p[0] = Function_Call(Identifier("log"), [p[3], p[5]])
-    # p[3].parent = p[0]
-    # p[5].parent = p[0]
 
 
 def p_expression_rand(p):
@@ -788,13 +718,231 @@ def p_error(p):
     sErrorList.append(p)
     print("Error!")
     print(p)
-    # print(sErrorList[-1])
 
 
 parser = yacc.yacc(start="program", method="LALR")
-while True:
-    code = input("calc > ")
-    if not code:
-        break
-    print(parser.parse(code, lexer=lexer))
+log = logging.getLogger()
+# while True:
+#     code = input("calc > ")
+#     if not code:
+#         break
+#     print(parser.parse(code, lexer=lexer))
+
+data = """function tan(x: Number): Number => sin(x) / cos(x);
+function cot(x) => 1 / tan(x);
+function operate(x, y) {
+    print(x + y);
+    print(x - y);
+    print(x * y);
+    print(x / y);
+}
+function fib(n) => if (n == 0 | n == 1) 1 else fib(n-1) + fib(n-2);
+function fact(x) => let f = 1 in for (i in range(1, x+1)) f := f * i;
+function gcd(a, b) => while (a > 0)
+        let m = a % b in {
+            b := a;
+            a := m;
+        };
+protocol Hashable {
+    hash(): Number;
+}
+protocol Equatable extends Hashable {
+    equals(other: Object): Boolean;
+}
+protocol Iterable {
+    next() : Boolean;
+    current() : Object;
+}
+type Range(min:Number, max:Number) {
+    min = min;
+    max = max;
+    current = min - 1;
+
+    next(): Boolean => (self.current := self.current + 1) < self.max;
+    current(): Number => self.current;
+}
+type Point(x,y) {
+    x = x;
+    y = y;
+
+    getX() => self.x;
+    getY() => self.y;
+
+    setX(x) => self.x := x;
+    setY(y) => self.y := y;
+}
+
+type PolarPoint(phi, rho) inherits Point(rho * sin(phi), rho * cos(phi)) {
+    rho() => sqrt(self.getX() ^ 2 + self.getY() ^ 2); 
+}
+
+
+type Knight inherits Person {
+    name() => "Sir" @@ base();
+}
+type Person(firstname, lastname) {
+    firstname = firstname;
+    lastname = lastname;
+
+    name() => self.firstname @@ self.lastname;
+    hash() : Number {
+        5;
+    }
+}
+type Superman {
+}
+type Bird {
+}
+type Plane {
+}
+type A {
+    hello() => print("A");
+}
+
+type B inherits A {
+    hello() => print("B");
+}
+
+type C inherits A {
+    hello() => print("C");
+}
+
+
+{
+    42;
+    print(42);
+    print((((1 + 2) ^ 3) * 4) / 5);
+    print("Hello World");
+    print("The message is \"Hello World\"");
+    print("The meaning of life is " @ 42);
+    print(sin(2 * PI) ^ 2 + cos(3 * PI / log(4, 64)));
+    {
+        print(42);
+        print(sin(PI/2));
+        print("Hello World");
+    };
+
     
+    print(tan(PI) ** 2 + cot(PI) ** 2);
+
+    let msg = "Hello World" in print(msg);
+    let number = 42, text = "The meaning of life is" in
+        print(text @ number);
+    let number = 42 in
+        let text = "The meaning of life is" in
+            print(text @ number);
+    let number = 42 in (
+        let text = "The meaning of life is" in (
+                print(text @ number)
+            )
+        );
+    let a = 6, b = a * 7 in print(b);
+    let a = 6 in
+        let b = a * 7 in
+            print(b);
+    let a = 5, b = 10, c = 20 in {
+        print(a+b);
+        print(b*c);
+        print(c/a);
+    };
+    let a = (let b = 6 in b * 7) in print(a);
+    print(let b = 6 in b * 7);
+    let a = 20 in {
+        let a = 42 in print(a);
+        print(a);
+    };
+    let a = 7, a = 7 * 6 in print(a);
+    let a = 7 in
+        let a = 7 * 6 in
+            print(a);
+    let a = 0 in {
+        print(a);
+        a := 1;
+        print(a);
+    };
+    let a = 0 in
+        let b = a := 1 in {
+            print(a);
+            print(b);
+        };
+    let a = 42 in if (a % 2 == 0) print("Even") else print("odd");
+    let a = 42 in print(if (a % 2 == 0) "even" else "odd");
+    let a = 42 in
+        if (a % 2 == 0) {
+            print(a);
+            print("Even");
+        }
+        else print("Odd");
+    let a = 42, mod = a % 3 in 
+        print(
+            if (mod == 0) "Magic"
+            elif (mod % 3 == 1) "Woke"
+            else "Dumb"
+        );
+    let a = 10 in while (a >= 0) {
+        print(a);
+        a := a - 1;
+    };
+    
+    for (x in range(0, 10)) print(x);
+    let iterable = range(0, 10) in
+        while (iterable.next())
+            let x = iterable.current() in
+                print(x);
+
+    let pt = new Point() in 
+        print("x: " @ pt.getX() @ "; y: " @ pt.getY());
+    let pt = new Point(3,4) in
+        print("x: " @ pt.getX() @ "; y: " @ pt.getY());
+    let pt = new PolarPoint(3,4) in
+        print("rho: " @ pt.rho());
+
+    let p = new Knight("Phil", "Collins") in
+        print(p.name());
+    let p: Person = new Knight("Phil", "Collins") in print(p.name());
+    let x: Number = 42 in print(x);
+
+    
+    let x = new Superman() in
+        print(
+            if (x is Bird) "It's bird!"
+            elif (x is Plane) "It's a plane!"
+            else "No, it's Superman!"
+        );
+
+    let x = 42 in print(x);
+    let total = { print("Total"); 5; } + 6 in print(total);
+
+    
+
+    let x : A = if (rand() < 0.5) new B() else new C() in
+        if (x is B)
+            let y : B = x as B in {
+                y.hello();
+            }
+        else {
+            print("x cannot be downcasted to B");
+        };
+
+    let numbers = [1,2,3,4,5,6,7,8,9] in
+        for (x in numbers)
+            print(x);
+    let numbers = [1,2,3,4,5,6,7,8,9] in print(numbers[7]);
+
+    
+    let squares = [x^2 || x in range(1,10)] in print(x);
+
+    let squares = [x^2 || x in range(1,10)] in for (x in squares) print(x);
+    let x : Hashable = new Person() in print(x.hash());
+    let x : Hashable = new Point(0,0) in print(x.hash());
+
+    let awacate: QueRico = new QueRico("siuuuu" @@ banda @ yaes + 4*5^2 @@ temporada_de_awacate == true) in aguacate.cascara("verde").lo_de_adentro(43*-1).semilla(true);
+}
+"""
+print(parser.parse('''type Range(min:Number, max:Number) {
+    min = min;
+    max = max;
+    current = min - 1;
+    next(): Boolean => (self.current := self.current + 1) < self.max;
+    current(): Number => self.current;
+}''', debug = log))
