@@ -59,7 +59,7 @@ class TypeCollector(object):
 
         for types in node.type_list:
             self.visit(types)
-        for functions in node.function_list:
+        for functions in node.func_list:
             self.visit(functions)
         for protocols in node.protocol_list:
             self.visit(protocols)
