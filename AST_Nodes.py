@@ -44,9 +44,10 @@ class Identifier(Expression):
 
 builtin_func_names = ["print", "sqrt", "sin", "cos", "exp", "log", "rand"]
 class Function_Call(Expression):
-    def __init__(self, name: Expression, arguments: List[Expression]):
+    def __init__(self, name: Expression, arguments: List[Expression], type = None):
         self.name = name
         self.arguments = arguments
+        self.type = type
 
 class Base_Function_Call(Expression):
     def __init__(self, arguments: List[Expression], ancestor_name: str = None, func_name: str = None): #ancestor_name es el nombre del tipo ancestro que tiene la funcion a la que se esta llamando con base
@@ -56,8 +57,10 @@ class Base_Function_Call(Expression):
         self.func_name = func_name
 
 binary_operators = [
-    "+", "-", "*", "/", "@"
-    "<", ">", "<=", ">=", "==", "!=",
+    "+", "-", "*", "/", "%",
+    "@",
+    "<", ">", "<=", ">=", 
+    "==", "!=",
     "&", "|"]
 class Binary_Operator(Expression):
     def __init__(self, operator_type, left: Expression, right: Expression, type = None):
@@ -166,8 +169,9 @@ class While(Expression):
         self.body = body
 
 def For(iterable: Expression, variable_name: str, body: Expression):
-    return Variable_Declarations([".it"], [iterable], While(Function_Call(Dot_Operator(Identifier(".it"), Identifier("next"), True), []), 
-        Variable_Declarations([variable_name], [Function_Call(Dot_Operator(Identifier(".it"), Identifier("current"), True), [])], body)
+    return Variable_Declarations([".it"], [iterable], 
+    While(Function_Call(Dot_Operator(Identifier(".it", iterable.type), Identifier("next"), True), []), 
+        Variable_Declarations([variable_name], [Function_Call(Dot_Operator(Identifier(".it", iterable.type), Identifier("current"), True), [])], body)
     ), ["Iterable"])
 
 class Type_Definition(Expression):
